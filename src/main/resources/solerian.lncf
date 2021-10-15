@@ -1,0 +1,125 @@
+define global stress_regex = "[áéíóúý]"
+define global vowel_regex = "[eiouyàáéíóúý]"
+define global syllable_regex = "[aeiouyàáéíóúý]"
+
+define flow destress {
+  flow lib:map_characters {
+    "áéíóúý", "àeiouy"
+  }
+}
+
+define flow stress_first {
+  flow destress
+  flow lib:map_characters {
+    "aàeiouy", "ááéíóúý"
+    limit=1
+  }
+}
+
+define flow stress_last {
+  flow destress
+  flow lib:map_characters {
+    "aàeiouy", "ááéíóúý"
+    limit=1, reverse=true
+  }
+}
+
+define flow lax_stress {
+  flow lib:map_characters {
+    "àeiouy", "áéíóúý"
+    limit=1,
+  }
+}
+
+define fn stressed {
+  fn lib:has_match {
+    $1, stress_regex
+  }
+}
+
+define fn vowel_count {
+  fn lib:match_count {
+    $1, vowel_regex
+  }
+}
+
+define fn syllable_count {
+  fn lib:match_count {
+    $1, syllable_regex
+  }
+}
+
+define flow normalize {
+  if stressed {
+    if syllable_count = 1 or vowel_count = 1 { flow destress }
+  } else {
+    if vowel_count = 0 { flow stress_first, flow destress }
+    elif vowel_count > 1 { flow lax_stress }
+  }
+}
+
+define flow apply_suffix {
+  if stressed($1) { flow destress }
+  flow :append { $1 }
+
+  macro lib:rune {
+    {replace, "@", fn :char {$suffix, 1}}
+    {trigger, "<", flow stress_first}
+    {trigger, ">", flow stress_last}
+  }
+
+  flow normalize
+}
+
+manual enum paradigm { noun, verb }
+
+classify noun_class where paradigm=noun {
+  f1t -> suffix "[àá]t"
+  f1d -> suffix "[àá]d"
+  f2i -> suffix "[ií]à"
+  f2x -> suffix "[àá]x"
+  f2  -> suffix "[àá]"
+  m1  -> suffix "[eé]n"
+  m2  -> suffix "m"
+  n1  -> suffix "[eé]l"
+  n2  -> suffix "r"
+}
+
+classify verb_class where paradigm=verb {
+  I   -> suffix "élus"
+  II  -> suffix (syllable_regex .. "las")
+  III -> suffix "lud",
+  IV  -> include {
+    exclude { suffix (stress_regex .. "(.*)[nm][úu]") }
+    suffix "[nm][úu]"
+  }
+  0   -> suffix "lus"
+}
+
+functional enum number { sg, pl }
+functional enum case { nom, acc, gen }
+
+functional space for noun_class {
+  dimensions { number, case }
+  order permute
+  then { flow apply_suffix }
+
+  f1t -> {"àt", "en",  "is",   "àtún", "etin",  "iis"}
+  f1d -> {"àd", "ein", "is",   "ánd",  "etin",  "iis"}
+  f2i -> {"à",  "e",   "r",    "áin",  "ein",   "ir"}
+  f2x -> {"àx", "ox",  "ir",   "áxi",  "oxe",   "ixir"}
+  f2  -> {"à",  "e",   "ir",   "áin",  "ein",   "iir"}
+  m1  -> {"en", "ean", "yr",   "enét", "eant",  "esyr"}
+  m2  -> {"m",  "m",   "mer",  "mas",  "mas",   "ǹir"}
+  n1  -> {"el", "aln", "eler", "eek",  "alnek", "elsar"}
+  n2  -> {"r",  "rin", "ràr",  "àr",   "rinse", "riser"}
+}
+
+functional enum person { 1, 2, 3 }
+functional enum tense { present, past }
+
+functional space for verb_class {
+  dimensions {person, number, tense}
+  order {inf1, inf2, permute}
+  then { flow apply_suffix }
+}

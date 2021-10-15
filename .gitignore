@@ -1,0 +1,6 @@
+.gradle/
+.idea/
+build/
+src/main/antlr/*
+!src/main/antlr/LNCF.g4
+test.lncfb
