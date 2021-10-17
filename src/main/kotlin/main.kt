@@ -101,7 +101,7 @@ fun main() {
   walker.walk(listener, topLevel)
   println(listener.rewriter.text)
 
-  val defs = topLevel.d.map { transform(it) }
+  val defs = topLevel.d.map { it.transform() }
   val tree = TreeState()
   tree.nest("root") { t ->
     defs.forEach {

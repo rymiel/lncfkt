@@ -71,7 +71,6 @@ class VirtualMachineCompiler {
   var current: Line? = null
   var currentEntrypoint: Line? = null
   var knownDefs = listOf<Definition>()
-  private var inFlow = false
   private var inControl = false
   private var inFunctional = false
 
@@ -85,11 +84,6 @@ class VirtualMachineCompiler {
     when (def) {
       is GlobalDefinition -> {
         globals[def.name] = allocateConstant(def.value)
-      }
-      is FlowDefinition -> {
-        inFlow = true
-        topLevelGuard(def.name, def.body)
-        inFlow = false
       }
       is FnDefinition -> {
         topLevelGuard(def.name, def.body)
@@ -137,7 +131,7 @@ class VirtualMachineCompiler {
   fun topLevelGuard(name: String, body: List<Call>) {
     this.current = null
     compileBody(body)
-    if (inFlow) {
+    if (false) {
       autoLoadReg(0)
     }
     opcode(RET)
@@ -146,24 +140,15 @@ class VirtualMachineCompiler {
     declared[name] = VirtualMachineFunction(0, res.toByteArray(), listOf())
   }
 
+  @JvmName("compileBody1")
+  fun compileBody(body: List<CallContainer>) {
+    compileBody(body.map { it.call })
+  }
+
   fun compileBody(body: List<Call>) {
     body.forEach {
       when (it) {
-        is FlowCall -> {
-          if (!inFlow) throw IllegalStateException("Can't call flow outside of flow")
-          autoLoadReg(0)
-          it.args.positional.forEach { a ->
-            autoConst(a)
-          }
-          it.args.named.forEach { (k, v) ->
-            autoConst(k)
-            autoConst(v)
-          }
-          autoCall(it.name.namespace, it.name.qualifier, it.args.positional.size + 1, it.args.named.size)
-          autoStoreReg(0)
-        }
         is FnCall -> {
-          if (inFlow) autoLoadReg(0)
           it.args.positional.forEach { a ->
             autoConst(a)
           }
@@ -171,9 +156,8 @@ class VirtualMachineCompiler {
             autoConst(k)
             autoConst(v)
           }
-          val argSize = if (inFlow) it.args.positional.size + 1 else it.args.positional.size
+          val argSize = it.args.positional.size
           autoCall(it.name.namespace, it.name.qualifier, argSize, it.args.named.size)
-          if (inFlow && !inControl) autoStoreReg(0)
         }
         is IfElseCall -> {
           val fallthrough = Line(NOOP)
@@ -242,14 +226,11 @@ class VirtualMachineCompiler {
       }
     } else if (clause is FunctionalCallClause) {
       val previousInControl = inControl
-      val previousInFlow = inFlow
       val previousInFunctional = inFunctional
       inControl = true
-      inFlow = false
       inFunctional = true
       compileBody(listOf(FnCall(clause.function, Arguments(clause.args))))
       inControl = previousInControl
-      inFlow = previousInFlow
       inFunctional = previousInFunctional
     } else {
       // TODO("Unknown clause type $clause")
@@ -421,7 +402,7 @@ class VirtualMachineCompiler {
     when (v) {
       is Constant<*> -> this.autoConst(v)
       is Global -> this.opcode(LD_CONST, globals[v.name]!!)
-      is PassedIndexArgument -> this.autoLoadReg(v.index - (if (inFlow || (!inFlow && inFunctional)) 0 else 1))
+      is PassedIndexArgument -> this.autoLoadReg(v.index - (if (inFunctional) 0 else 1))
       else -> println("Couldn't parse argument of type ${v::class} $v")
     }
   }

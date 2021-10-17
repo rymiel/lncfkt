@@ -21,15 +21,19 @@ data class PassedIndexArgument(val index: Int): LiteralLike()
 data class PassedNamedArgument(val name: String): LiteralLike()
 
 data class Arguments(val positional: List<LiteralLike> = listOf(), val named: Map<String, LiteralLike> = mapOf())
-sealed class Call
-data class FlowCall(val name: Identifier, val args: Arguments) : Call()
+sealed class Call {
+  fun box(flow: Boolean = false) : CallContainer {
+    return CallContainer(flow, this)
+  }
+}
 data class FnCall(val name: Identifier, val args: Arguments) : Call()
-data class IfElseCall(val clauses: List<Conditional>, val elseBody: List<Call>?) : Call()
+data class IfElseCall(val clauses: List<Conditional>, val elseBody: List<CallContainer>?) : Call()
 data class MacroCall(val name: Identifier, val body: List<MacroBody>) : Call()
-data class SetCall(val name: String, val body: Call) : Call()
+data class SetCall(val name: String, val body: CallContainer) : Call()
 data class ReturnCall(val value: LiteralLike) : Call()
 @Deprecated("unimplemented")
 data class UnimplementedCall(val msg: String = "UNIMPLEMENTED!") : Call()
+data class CallContainer(val usedToBeFlow: Boolean, val call: Call)
 
 sealed class MacroBody
 data class ArgumentMacroBody(val argument: LiteralLike, val name: String?) : MacroBody()
@@ -38,12 +42,12 @@ data class RecursiveMacroBody(val next: List<MacroBody>) : MacroBody()
 
 sealed class Definition(open val name: String)
 data class GlobalDefinition(override val name: String, val value: Literal): Definition(name)
-data class FlowDefinition(override val name: String, val args: List<String>, val body: List<Call>): Definition(name)
+// data class FlowDefinition(override val name: String, val args: List<String>, val body: List<Call>): Definition(name)
 data class FnDefinition(override val name: String, val args: List<String>, val body: List<Call>): Definition(name)
 @Deprecated("unimplemented")
 data class UnimplementedDefinition(val msg: String = "UNIMPLEMENTED!") : Definition("?")
 
-data class Conditional(val clause: Clause, val body: List<Call>)
+data class Conditional(val clause: Clause, val body: List<CallContainer>)
 
 sealed class Clause
 data class LiteralClause(val literal: LiteralLike) : Clause()
@@ -71,7 +75,7 @@ fun LNCFParser.Macro_memberContext.transform(): MacroBody {
         else -> throw IllegalStateException("Unknown macro member argument $a ${a::class}")
       }
     }
-    is LNCFParser.CallMacroMemberContext -> CallMacroBody(this.call().transform())
+    is LNCFParser.CallMacroMemberContext -> CallMacroBody(this.call().transform().call)
     is LNCFParser.RecursiveMacroMemberContext -> RecursiveMacroBody(this.macro_body().d.map { it.transform() })
     else -> throw IllegalStateException("Unknown macro member $this ${this::class}")
   }
@@ -128,15 +132,15 @@ fun LNCFParser.IdentifierContext.transform(): Identifier {
   }
 }
 
-fun LNCFParser.CallContext.transform(): Call {
+fun LNCFParser.CallContext.transform(): CallContainer {
   return when (this) {
     is LNCFParser.FlowCallContext -> {
       val call = functional_call()
-      return FlowCall(call.identifier().transform(), readArgs(call.d))
+      return FnCall(call.identifier().transform(), readArgs(call.d)).box(true)
     }
     is LNCFParser.FnCallContext -> {
       val call = functional_call()
-      return FnCall(call.identifier().transform(), readArgs(call.d))
+      return FnCall(call.identifier().transform(), readArgs(call.d)).box()
     }
     is LNCFParser.IfElseCallContext -> {
       val ifElse = if_else_call()
@@ -150,32 +154,43 @@ fun LNCFParser.CallContext.transform(): Call {
         Conditional(clause, body)
       }
       val elseBody = ifElse.else_body?.d?.map { it.transform() }
-      return IfElseCall(conditions, elseBody)
+      return IfElseCall(conditions, elseBody).box()
     }
     is LNCFParser.MacroCallContext -> {
       val m = macro_call()
-      MacroCall(m.identifier().transform(), m.macro_body().d.map { it.transform() })
+      MacroCall(m.identifier().transform(), m.macro_body().d.map { it.transform() }).box()
     }
-    is LNCFParser.SetCallContext -> SetCall(WORD().text, call().transform())
-    is LNCFParser.ReturnCallContext -> ReturnCall(literal_like().transform())
-    else -> UnimplementedCall("call $this ${this::class}")
+    is LNCFParser.SetCallContext -> SetCall(WORD().text, call().transform()).box()
+    is LNCFParser.ReturnCallContext -> ReturnCall(literal_like().transform()).box()
+    else -> UnimplementedCall("call $this ${this::class}").box()
   }
 }
 
-fun transform(d: LNCFParser.DefinitionContext): Definition {
-  return when (d) {
+fun LNCFParser.DefinitionContext.transform(): Definition {
+  return when (this) {
     is LNCFParser.GlobalDefinitionContext -> {
-      val global = d.global_definition()
+      val global = global_definition()
       GlobalDefinition(global.WORD().text, global.literal().transform())
     }
     is LNCFParser.FlowDefinitionContext -> {
-      val flow = d.functional_definition()
-      FlowDefinition(flow.name.text, flow.args.map { it.text }, flow.body().d.map { it.transform() })
+      val flow = functional_definition()
+
+      val args = listOf("word") + flow.args.map { it.text }
+      val body = flow.body().d.map {
+        var callC = it.transform()
+        if (callC.usedToBeFlow && callC.call is FnCall) {
+          val call = callC.call as FnCall
+          callC = FnCall(call.name, Arguments(listOf(PassedNamedArgument("word")) + call.args.positional, call.args.named)).box()
+        }
+        SetCall("word", callC)
+      } + ReturnCall(PassedNamedArgument("word"))
+
+      FnDefinition(flow.name.text, args, body)
     }
     is LNCFParser.FnDefinitionContext -> {
-      val fn = d.functional_definition()
-      FnDefinition(fn.name.text, fn.args.map { it.text }, fn.body().d.map { it.transform() })
+      val fn = functional_definition()
+      FnDefinition(fn.name.text, fn.args.map { it.text }, fn.body().d.map { it.transform().call })
     }
-    else -> UnimplementedDefinition("definition $d ${d::class}")
+    else -> UnimplementedDefinition("definition $this ${this::class}")
   }
 }

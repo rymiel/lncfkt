@@ -68,7 +68,6 @@ data class TreeState(val body: MutableList<TreeNode> = mutableListOf()) {
 fun Definition.tree(t: TreeState) {
   when (this) {
     is GlobalDefinition -> this.tree(t)
-    is FlowDefinition -> this.tree(t)
     is FnDefinition -> this.tree(t)
     is UnimplementedDefinition -> this.tree(t)
   }
@@ -77,21 +76,6 @@ fun Definition.tree(t: TreeState) {
 fun GlobalDefinition.tree(t: TreeState) {
   t.nest("define global", name) {
     value.tree(it)
-  }
-}
-
-fun FlowDefinition.tree(t: TreeState) {
-  t.nest("define flow", name) { tc ->
-    tc.nest("args") { ttc ->
-      args.forEach {
-        ttc.emit(it)
-      }
-    }
-    tc.nest("body") { ttc ->
-      body.forEach {
-        it.tree(ttc)
-      }
-    }
   }
 }
 
@@ -118,9 +102,12 @@ fun Clause.tree(t: TreeState) {
   }
 }
 
+fun CallContainer.tree(t: TreeState) {
+  this.call.tree(t)
+}
+
 fun Call.tree(t: TreeState) {
   when (this) {
-    is FlowCall -> this.tree(t)
     is FnCall -> this.tree(t)
     is IfElseCall -> this.tree(t)
     is MacroCall -> this.tree(t)
@@ -178,22 +165,6 @@ fun LiteralLike.tree(t: TreeState) {
     is Global -> this.tree(t)
     is PassedIndexArgument -> this.tree(t)
     is PassedNamedArgument -> this.tree(t)
-  }
-}
-
-fun FlowCall.tree(t: TreeState) {
-  val identifier = "${name.namespace}:${name.qualifier}"
-  t.nest("call flow", identifier) { tc ->
-    args.positional.forEachIndexed { i, it ->
-      tc.nest(i.toString()) { ttc ->
-        it.tree(ttc)
-      }
-    }
-    args.named.forEach { (k, it) ->
-      tc.nest(k) { ttc ->
-        it.tree(ttc)
-      }
-    }
   }
 }
 
