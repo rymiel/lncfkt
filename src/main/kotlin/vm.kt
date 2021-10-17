@@ -92,6 +92,7 @@ class VirtualMachineCompiler {
   var knownDefs = listOf<Definition>()
   private var inFlow = false
   private var inControl = false
+  private var inFunctional = false
 
   fun compile(defs: List<Definition>) {
     this.knownDefs = defs
@@ -258,6 +259,17 @@ class VirtualMachineCompiler {
         "or" -> {}
         else -> TODO("Unknown binary operation ${clause.operation} in $clause")
       }
+    } else if (clause is FunctionalCallClause) {
+      val previousInControl = inControl
+      val previousInFlow = inFlow
+      val previousInFunctional = inFunctional
+      inControl = true
+      inFlow = false
+      inFunctional = true
+      compileBody(listOf(FnCall(clause.function, Arguments(clause.args))))
+      inControl = previousInControl
+      inFlow = previousInFlow
+      inFunctional = previousInFunctional
     } else {
       // TODO("Unknown clause type $clause")
     }
@@ -448,7 +460,7 @@ class VirtualMachineCompiler {
     when (v) {
       is Constant<*> -> this.autoConst(v)
       is Global -> this.opcode(LD_CONST, globals[v.name]!!)
-      is PassedIndexArgument -> this.autoLoadReg(v.index - 1)
+      is PassedIndexArgument -> this.autoLoadReg(v.index - (if (inFlow || (!inFlow && inFunctional)) 0 else 1))
       else -> println("Couldn't parse argument of type ${v::class} $v")
     }
   }

@@ -150,7 +150,7 @@ clause
     | clause (EQ | GT | LT) clause                      #ComparisonClause
     | clause OR clause                                  #BooleanClause
     | LP clause RP                                      #ParentheticalClause
-    | fn=WORD LP arg=clause (separator arg=clause?)* RP #FunctionCallClause
+    | fn=WORD LP d+=literal_like (separator d+=literal_like?)* RP   #FunctionCallClause
     ;
 
 POS_ARG     : '$'[0-9]+ ;

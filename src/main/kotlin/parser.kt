@@ -40,8 +40,7 @@ data class Conditional(val clause: Clause, val body: List<Call>)
 sealed class Clause
 data class LiteralClause(val literal: LiteralLike) : Clause()
 data class BinaryClause(val operation: String, val a: Clause, val b: Clause) : Clause()
-@Deprecated("unimplemented")
-data class UnimplementedClause(val msg: String = "UNIMPLEMENTED!") : Clause()
+data class FunctionalCallClause(val function: Identifier, val args: List<LiteralLike>) : Clause()
 
 fun readArgs(a: List<LNCFParser.ArgumentContext>): Arguments {
   val pos = mutableListOf<LiteralLike>()
@@ -68,7 +67,8 @@ fun LNCFParser.ClauseContext.transform(): Clause {
       }
       BinaryClause(operation, this.clause(0).transform(), this.clause(1).transform())
     }
-    else -> UnimplementedClause("$this ${this::class}")
+    is LNCFParser.FunctionCallClauseContext -> FunctionalCallClause(Identifier(this.fn.text), this.d.map { it.transform() })
+    else -> throw IllegalStateException("Unknown clause $this ${this::class}")
   }
 }
 
@@ -129,7 +129,11 @@ fun transform(c: LNCFParser.CallContext): Call {
       val elseBody = ifElse.else_body?.d?.map { transform(it) }
       return IfElseCall(conditions, elseBody)
     }
-    else -> UnimplementedCall("$c ${c::class}")
+    is LNCFParser.MacroCallContext -> {
+      val m = c.macro_call()
+      MacroCall(m.identifier().transform(), m.macro_body().d.map { it.transform() })
+    }
+    else -> UnimplementedCall("call $c ${c::class}")
   }
 }
 
@@ -147,6 +151,6 @@ fun transform(d: LNCFParser.DefinitionContext): Definition {
       val fn = d.functional_definition()
       FnDefinition(fn.name.text, fn.body().d.map { transform(it) })
     }
-    else -> UnimplementedDefinition("$d ${d::class}")
+    else -> UnimplementedDefinition("definition $d ${d::class}")
   }
 }

@@ -52,15 +52,6 @@ data class TreeState(val body: MutableList<TreeNode> = mutableListOf()) {
     }
   }
 
-  fun nestToPrevious(nest: (TreeState) -> Unit) {
-    val child = TreeState()
-    nest.invoke(child)
-    val previous = body.removeLast()
-    val previousChildren = previous.children.toMutableList()
-    previousChildren.addAll(child.body)
-    body.add(TreeNode(previous.key, previousChildren))
-  }
-
   fun nest(implicit: String, nest: (TreeState) -> Unit) {
     val child = TreeState()
     nest.invoke(child)
@@ -109,7 +100,7 @@ fun Clause.tree(t: TreeState) {
   when (this) {
     is LiteralClause -> this.literal.tree(t)
     is BinaryClause -> this.tree(t)
-    is UnimplementedClause -> this.tree(t)
+    is FunctionalCallClause -> this.tree(t)
   }
 }
 
@@ -138,7 +129,7 @@ fun LiteralLike.tree(t: TreeState) {
 }
 
 fun FlowCall.tree(t: TreeState) {
-  val identifier = if (name.namespace == null) name.qualifier else "${name.namespace}:${name.qualifier}"
+  val identifier = "${name.namespace}:${name.qualifier}"
   t.nest("call flow", identifier) { tc ->
     args.positional.forEachIndexed { i, it ->
       tc.nest(i.toString()) { ttc ->
@@ -154,7 +145,7 @@ fun FlowCall.tree(t: TreeState) {
 }
 
 fun FnCall.tree(t: TreeState) {
-  val identifier = if (name.namespace == null) name.qualifier else "${name.namespace}:${name.qualifier}"
+  val identifier = "${name.namespace}:${name.qualifier}"
   t.nest("call fn", identifier) { tc ->
     args.positional.forEachIndexed { i, it ->
       tc.nest(i.toString()) { ttc ->
@@ -195,6 +186,16 @@ fun BinaryClause.tree(t: TreeState) {
     b.tree(it)
   }
 }
+fun FunctionalCallClause.tree(t: TreeState) {
+  val identifier = "${function.namespace}:${function.qualifier}"
+  t.nest("call", identifier) { tc ->
+    args.forEachIndexed { i, it ->
+      tc.nest(i.toString()) { ttc ->
+        it.tree(ttc)
+      }
+    }
+  }
+}
 fun PassedIndexArgument.tree(t: TreeState) {
   t.emit("passed argument", index.toString())
 }
@@ -210,9 +211,6 @@ fun UnimplementedCall.tree(t: TreeState) {
 }
 fun UnimplementedDefinition.tree(t: TreeState) {
   t.emit("define$RED unimplemented $msg")
-}
-fun UnimplementedClause.tree(t: TreeState) {
-  t.emit("clause$RED unimplemented $msg")
 }
 
 fun <T> Constant<T>.tree(t: TreeState) {
