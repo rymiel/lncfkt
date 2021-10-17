@@ -71,6 +71,7 @@ class VirtualMachineCompiler {
   var current: Line? = null
   var currentEntrypoint: Line? = null
   var knownDefs = listOf<Definition>()
+  private var context: FnDefinition? = null
   private var inControl = false
   private var inFunctional = false
 
@@ -86,7 +87,7 @@ class VirtualMachineCompiler {
         globals[def.name] = allocateConstant(def.value)
       }
       is FnDefinition -> {
-        topLevelGuard(def.name, def.body)
+        topLevelGuard(def)
       }
     }
   }
@@ -128,21 +129,19 @@ class VirtualMachineCompiler {
     file.writeBytes(b.toByteArray())
   }
 
-  fun topLevelGuard(name: String, body: List<Call>) {
+  fun topLevelGuard(fn: FnDefinition) {
     this.current = null
-    compileBody(body)
-    if (false) {
-      autoLoadReg(0)
-    }
+    this.context = fn
+    compileBody(fn.body)
     opcode(RET)
     val res = currentEntrypoint!!
     optimizeBody(res)
-    declared[name] = VirtualMachineFunction(0, res.toByteArray(), listOf())
-  }
-
-  @JvmName("compileBody1")
-  fun compileBody(body: List<CallContainer>) {
-    compileBody(body.map { it.call })
+    println("===" + fn.name + "===")
+    res.flatten().lines.forEach {
+      println("${it.instr} ${it.args.contentToString()}")
+    }
+    println("===" + fn.name + "===")
+    declared[fn.name] = VirtualMachineFunction(0, res.toByteArray(), listOf())
   }
 
   fun compileBody(body: List<Call>) {
@@ -175,6 +174,18 @@ class VirtualMachineCompiler {
             newLine(fallthrough)
           }
         }
+        is SetCall -> {
+          compileBody(listOf(it.body))
+          autoStoreReg(context!!.args.indexOf(it.name))
+        }
+        is ReturnCall -> {
+          autoConst(it.value)
+          opcode(RET)
+        }
+//        is MacroCall -> {
+//          // TODO: THIS IS VERY TEMPORARY
+//          opcode(LD_REG_0)
+//        }
         else -> println("Couldn't parse body of type ${it::class} $it")
       }
     }
@@ -193,47 +204,38 @@ class VirtualMachineCompiler {
   }
 
   fun resolveClause(clause: Clause, fallthrough: Line, bodyMarker: Line, elseMarker: Line) {
-    if (clause is LiteralClause) {
-      val lit = clause.literal
-      if (lit is Global) {
-        val implicitCall = this.knownDefs.find { i -> i.name == lit.name }
-        if (implicitCall is FnDefinition) {
-          val previousInControl = inControl
-          inControl = true
-          compileBody(listOf(FnCall(Identifier(lit.name), Arguments())))
-          inControl = previousInControl
-        } else {
-          TODO("Unknown implicit call $implicitCall")
+    when (clause) {
+      is LiteralClause -> {
+        when (val lit = clause.literal) {
+          is Global -> TODO("Unknown implicit call $lit")
+          is Constant<*> -> autoConst(lit)
+          else -> TODO("Unknown literal in if clause $lit")
         }
-      } else if (lit is Constant<*>) {
-        autoConst(lit)
-      } else {
-        TODO("Unknown literal in if clause $lit")
       }
-    } else if (clause is BinaryClause) {
-      resolveClause(clause.a, fallthrough, bodyMarker, elseMarker)
-      when (clause.operation) {
-        "or" -> newLine(Line(JNZ, byteArrayOf(-1, -1), null, bodyMarker))
-        else -> {}
+      is BinaryClause -> {
+        resolveClause(clause.a, fallthrough, bodyMarker, elseMarker)
+        when (clause.operation) {
+          "or" -> newLine(Line(JNZ, byteArrayOf(-1, -1), null, bodyMarker))
+          else -> {}
+        }
+        resolveClause(clause.b, fallthrough, bodyMarker, elseMarker)
+        when (clause.operation) {
+          "=" -> opcode(TEST_EQ)
+          ">" -> opcode(TEST_GT)
+          "<" -> opcode(TEST_LT)
+          "or" -> {}
+          else -> TODO("Unknown binary operation ${clause.operation} in $clause")
+        }
       }
-      resolveClause(clause.b, fallthrough, bodyMarker, elseMarker)
-      when (clause.operation) {
-        "=" -> opcode(TEST_EQ)
-        ">" -> opcode(TEST_GT)
-        "<" -> opcode(TEST_LT)
-        "or" -> {}
-        else -> TODO("Unknown binary operation ${clause.operation} in $clause")
+      is FunctionalCallClause -> {
+        val previousInControl = inControl
+        val previousInFunctional = inFunctional
+        inControl = true
+        inFunctional = true
+        compileBody(listOf(FnCall(clause.function, Arguments(clause.args))))
+        inControl = previousInControl
+        inFunctional = previousInFunctional
       }
-    } else if (clause is FunctionalCallClause) {
-      val previousInControl = inControl
-      val previousInFunctional = inFunctional
-      inControl = true
-      inFunctional = true
-      compileBody(listOf(FnCall(clause.function, Arguments(clause.args))))
-      inControl = previousInControl
-      inFunctional = previousInFunctional
-    } else {
-      // TODO("Unknown clause type $clause")
     }
   }
 
@@ -402,7 +404,8 @@ class VirtualMachineCompiler {
     when (v) {
       is Constant<*> -> this.autoConst(v)
       is Global -> this.opcode(LD_CONST, globals[v.name]!!)
-      is PassedIndexArgument -> this.autoLoadReg(v.index - (if (inFunctional) 0 else 1))
+      is PassedIndexArgument -> this.autoLoadReg(v.index - 1 + this.context!!.args.size)
+      is PassedNamedArgument -> this.autoLoadReg(this.context!!.args.indexOf(v.name))
       else -> println("Couldn't parse argument of type ${v::class} $v")
     }
   }

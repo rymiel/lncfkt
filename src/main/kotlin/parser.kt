@@ -1,5 +1,10 @@
 package space.rymiel.lncf
 
+data class Context(val definitions: List<DefinitionStub>, val current: DefinitionStub)
+data class DefinitionStub(val name: String, val type: DefinitionType) {
+  enum class DefinitionType { FN, FLOW, GLOBAL, UNDEFINED }
+}
+
 data class Identifier(val namespace: String, val qualifier: String) {
   companion object {
     operator fun invoke(id: String): Identifier {
@@ -21,19 +26,14 @@ data class PassedIndexArgument(val index: Int): LiteralLike()
 data class PassedNamedArgument(val name: String): LiteralLike()
 
 data class Arguments(val positional: List<LiteralLike> = listOf(), val named: Map<String, LiteralLike> = mapOf())
-sealed class Call {
-  fun box(flow: Boolean = false) : CallContainer {
-    return CallContainer(flow, this)
-  }
-}
+sealed class Call
 data class FnCall(val name: Identifier, val args: Arguments) : Call()
-data class IfElseCall(val clauses: List<Conditional>, val elseBody: List<CallContainer>?) : Call()
+data class IfElseCall(val clauses: List<Conditional>, val elseBody: List<Call>?) : Call()
 data class MacroCall(val name: Identifier, val body: List<MacroBody>) : Call()
-data class SetCall(val name: String, val body: CallContainer) : Call()
+data class SetCall(val name: String, val body: Call) : Call()
 data class ReturnCall(val value: LiteralLike) : Call()
 @Deprecated("unimplemented")
 data class UnimplementedCall(val msg: String = "UNIMPLEMENTED!") : Call()
-data class CallContainer(val usedToBeFlow: Boolean, val call: Call)
 
 sealed class MacroBody
 data class ArgumentMacroBody(val argument: LiteralLike, val name: String?) : MacroBody()
@@ -47,7 +47,7 @@ data class FnDefinition(override val name: String, val args: List<String>, val b
 @Deprecated("unimplemented")
 data class UnimplementedDefinition(val msg: String = "UNIMPLEMENTED!") : Definition("?")
 
-data class Conditional(val clause: Clause, val body: List<CallContainer>)
+data class Conditional(val clause: Clause, val body: List<Call>)
 
 sealed class Clause
 data class LiteralClause(val literal: LiteralLike) : Clause()
@@ -66,7 +66,7 @@ fun readArgs(a: List<LNCFParser.ArgumentContext>): Arguments {
   return Arguments(pos, named)
 }
 
-fun LNCFParser.Macro_memberContext.transform(): MacroBody {
+fun LNCFParser.Macro_memberContext.transform(ctx: Context): MacroBody {
   return when (this) {
     is LNCFParser.ArgumentMacroMemberContext -> {
       when (val a = this.argument()) {
@@ -75,16 +75,26 @@ fun LNCFParser.Macro_memberContext.transform(): MacroBody {
         else -> throw IllegalStateException("Unknown macro member argument $a ${a::class}")
       }
     }
-    is LNCFParser.CallMacroMemberContext -> CallMacroBody(this.call().transform().call)
-    is LNCFParser.RecursiveMacroMemberContext -> RecursiveMacroBody(this.macro_body().d.map { it.transform() })
+    is LNCFParser.CallMacroMemberContext -> CallMacroBody(this.call().transform(ctx))
+    is LNCFParser.RecursiveMacroMemberContext -> RecursiveMacroBody(this.macro_body().d.map { it.transform(ctx) })
     else -> throw IllegalStateException("Unknown macro member $this ${this::class}")
   }
 }
 
-fun LNCFParser.ClauseContext.transform(): Clause {
+fun LNCFParser.ClauseContext.transform(ctx: Context): Clause {
   return when (this) {
-    is LNCFParser.LiteralClauseContext -> LiteralClause(this.literal_like().transform())
-    is LNCFParser.BooleanClauseContext -> BinaryClause(this.OR().text, this.clause(0).transform(), this.clause(1).transform())
+    is LNCFParser.LiteralClauseContext -> {
+      val l = this.literal_like().transform()
+      var r: Clause = LiteralClause(l)
+      if (l is Global) {
+        val implicit = ctx.definitions.find { it.name == l.name }
+        if (implicit != null && implicit.type == DefinitionStub.DefinitionType.FN && ctx.current.type == DefinitionStub.DefinitionType.FLOW) {
+          r = FunctionalCallClause(Identifier(l.name), listOf(PassedNamedArgument("word")))
+        }
+      }
+      r
+    }
+    is LNCFParser.BooleanClauseContext -> BinaryClause(this.OR().text, this.clause(0).transform(ctx), this.clause(1).transform(ctx))
     is LNCFParser.ComparisonClauseContext -> {
       val operation = when {
         this.EQ() != null -> this.EQ().text
@@ -92,7 +102,7 @@ fun LNCFParser.ClauseContext.transform(): Clause {
         this.LT() != null -> this.LT().text
         else -> throw IllegalStateException("Couldn't identify operation in clause $text")
       }
-      BinaryClause(operation, this.clause(0).transform(), this.clause(1).transform())
+      BinaryClause(operation, this.clause(0).transform(ctx), this.clause(1).transform(ctx))
     }
     is LNCFParser.FunctionCallClauseContext -> FunctionalCallClause(Identifier(this.fn.text), this.d.map { it.transform() })
     else -> throw IllegalStateException("Unknown clause $this ${this::class}")
@@ -132,41 +142,57 @@ fun LNCFParser.IdentifierContext.transform(): Identifier {
   }
 }
 
-fun LNCFParser.CallContext.transform(): CallContainer {
+fun LNCFParser.CallContext.transform(ctx: Context): Call {
   return when (this) {
     is LNCFParser.FlowCallContext -> {
       val call = functional_call()
-      return FnCall(call.identifier().transform(), readArgs(call.d)).box(true)
+      if (ctx.current.type == DefinitionStub.DefinitionType.FLOW) {
+        val args = readArgs(call.d)
+        return SetCall("word",
+          FnCall(
+            call.identifier().transform(),
+            Arguments(listOf(PassedNamedArgument("word")) + args.positional, args.named)))
+      }
+      return FnCall(call.identifier().transform(), readArgs(call.d))
     }
     is LNCFParser.FnCallContext -> {
       val call = functional_call()
-      return FnCall(call.identifier().transform(), readArgs(call.d)).box()
+      return FnCall(call.identifier().transform(), readArgs(call.d))
     }
     is LNCFParser.IfElseCallContext -> {
       val ifElse = if_else_call()
       val clauses = ifElse.if_clauses.map {
-        it.transform()
+        it.transform(ctx)
       }
       val bodies = ifElse.if_bodies.map {
-        it.d.map { call -> call.transform() }
+        it.d.map { call -> call.transform(ctx) }
       }
       val conditions = clauses.zip(bodies) { clause, body ->
         Conditional(clause, body)
       }
-      val elseBody = ifElse.else_body?.d?.map { it.transform() }
-      return IfElseCall(conditions, elseBody).box()
+      val elseBody = ifElse.else_body?.d?.map { it.transform(ctx) }
+      return IfElseCall(conditions, elseBody)
     }
     is LNCFParser.MacroCallContext -> {
       val m = macro_call()
-      MacroCall(m.identifier().transform(), m.macro_body().d.map { it.transform() }).box()
+      MacroCall(m.identifier().transform(), m.macro_body().d.map { it.transform(ctx) })
     }
-    is LNCFParser.SetCallContext -> SetCall(WORD().text, call().transform()).box()
-    is LNCFParser.ReturnCallContext -> ReturnCall(literal_like().transform()).box()
-    else -> UnimplementedCall("call $this ${this::class}").box()
+    is LNCFParser.SetCallContext -> SetCall(WORD().text, call().transform(ctx))
+    is LNCFParser.ReturnCallContext -> ReturnCall(literal_like().transform())
+    else -> UnimplementedCall("call $this ${this::class}")
   }
 }
 
-fun LNCFParser.DefinitionContext.transform(): Definition {
+fun LNCFParser.DefinitionContext.stub(): DefinitionStub {
+  return when (this) {
+    is LNCFParser.GlobalDefinitionContext -> DefinitionStub(this.global_definition().WORD().text, DefinitionStub.DefinitionType.GLOBAL)
+    is LNCFParser.FlowDefinitionContext -> DefinitionStub(this.functional_definition().name.text, DefinitionStub.DefinitionType.FLOW)
+    is LNCFParser.FnDefinitionContext -> DefinitionStub(this.functional_definition().name.text, DefinitionStub.DefinitionType.FN)
+    else -> DefinitionStub("?", DefinitionStub.DefinitionType.UNDEFINED)
+  }
+}
+
+fun LNCFParser.DefinitionContext.transform(ctx: Context): Definition {
   return when (this) {
     is LNCFParser.GlobalDefinitionContext -> {
       val global = global_definition()
@@ -176,20 +202,13 @@ fun LNCFParser.DefinitionContext.transform(): Definition {
       val flow = functional_definition()
 
       val args = listOf("word") + flow.args.map { it.text }
-      val body = flow.body().d.map {
-        var callC = it.transform()
-        if (callC.usedToBeFlow && callC.call is FnCall) {
-          val call = callC.call as FnCall
-          callC = FnCall(call.name, Arguments(listOf(PassedNamedArgument("word")) + call.args.positional, call.args.named)).box()
-        }
-        SetCall("word", callC)
-      } + ReturnCall(PassedNamedArgument("word"))
+      val body = flow.body().d.map { it.transform(ctx) } + ReturnCall(PassedNamedArgument("word"))
 
       FnDefinition(flow.name.text, args, body)
     }
     is LNCFParser.FnDefinitionContext -> {
       val fn = functional_definition()
-      FnDefinition(fn.name.text, fn.args.map { it.text }, fn.body().d.map { it.transform().call })
+      FnDefinition(fn.name.text, fn.args.map { it.text }, fn.body().d.map { it.transform(ctx) })
     }
     else -> UnimplementedDefinition("definition $this ${this::class}")
   }

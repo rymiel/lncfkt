@@ -16,15 +16,6 @@ define flow stress_first {
   }
 }
 
-define fn stress_first_fn_example (word) {
-  set word fn destress { $word }
-  set word fn lib:map_characters {
-    $word, "aàeiouy", "ááéíóúý"
-    limit=1
-  }
-  return $word
-}
-
 define flow stress_last {
   flow destress
   flow lib:map_characters {

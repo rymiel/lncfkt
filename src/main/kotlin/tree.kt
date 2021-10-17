@@ -102,10 +102,6 @@ fun Clause.tree(t: TreeState) {
   }
 }
 
-fun CallContainer.tree(t: TreeState) {
-  this.call.tree(t)
-}
-
 fun Call.tree(t: TreeState) {
   when (this) {
     is FnCall -> this.tree(t)
