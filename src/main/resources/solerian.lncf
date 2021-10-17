@@ -63,7 +63,7 @@ define flow apply_suffix {
   flow :append { $1 }
 
   macro lib:rune {
-    {replace, "@", fn :char {$suffix, 1}}
+    {replace, "@", fn :char {$1, 1}}
     {trigger, "<", flow stress_first}
     {trigger, ">", flow stress_last}
   }

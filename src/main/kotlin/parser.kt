@@ -25,8 +25,14 @@ sealed class Call
 data class FlowCall(val name: Identifier, val args: Arguments) : Call()
 data class FnCall(val name: Identifier, val args: Arguments) : Call()
 data class IfElseCall(val clauses: List<Conditional>, val elseBody: List<Call>?) : Call()
+data class MacroCall(val name: Identifier, val body: List<MacroBody>) : Call()
 @Deprecated("unimplemented")
 data class UnimplementedCall(val msg: String = "UNIMPLEMENTED!") : Call()
+
+sealed class MacroBody
+data class ArgumentMacroBody(val argument: LiteralLike, val name: String?) : MacroBody()
+data class CallMacroBody(val call: Call) : MacroBody()
+data class RecursiveMacroBody(val next: List<MacroBody>) : MacroBody()
 
 sealed class Definition(open val name: String)
 data class GlobalDefinition(override val name: String, val value: Literal): Definition(name)
@@ -52,6 +58,21 @@ fun readArgs(a: List<LNCFParser.ArgumentContext>): Arguments {
     }
   }
   return Arguments(pos, named)
+}
+
+fun LNCFParser.Macro_memberContext.transform(): MacroBody {
+  return when (this) {
+    is LNCFParser.ArgumentMacroMemberContext -> {
+      when (val a = this.argument()) {
+        is LNCFParser.PositionalContext -> ArgumentMacroBody(a.literal_like().transform(), null)
+        is LNCFParser.NamedContext -> ArgumentMacroBody(a.literal_like().transform(), a.WORD().text)
+        else -> throw IllegalStateException("Unknown macro member argument $a ${a::class}")
+      }
+    }
+    is LNCFParser.CallMacroMemberContext -> CallMacroBody(transform(this.call()))
+    is LNCFParser.RecursiveMacroMemberContext -> RecursiveMacroBody(this.macro_body().d.map { it.transform() })
+    else -> throw IllegalStateException("Unknown macro member $this ${this::class}")
+  }
 }
 
 fun LNCFParser.ClauseContext.transform(): Clause {

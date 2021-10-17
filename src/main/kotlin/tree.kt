@@ -109,7 +109,31 @@ fun Call.tree(t: TreeState) {
     is FlowCall -> this.tree(t)
     is FnCall -> this.tree(t)
     is IfElseCall -> this.tree(t)
+    is MacroCall -> this.tree(t)
     is UnimplementedCall -> this.tree(t)
+  }
+}
+
+fun MacroCall.tree(t: TreeState) {
+  val identifier = "${name.namespace}:${name.qualifier}"
+  t.nest("macro", identifier) { tc ->
+    body.forEach {
+      it.tree(tc)
+    }
+  }
+}
+
+fun MacroBody.tree(t: TreeState) {
+  when (this) {
+    is ArgumentMacroBody -> this.argument.tree(t)
+    is CallMacroBody -> this.call.tree(t)
+    is RecursiveMacroBody -> {
+      t.nest("*") { tc ->
+        this.next.forEach {
+          it.tree(tc)
+        }
+      }
+    }
   }
 }
 
