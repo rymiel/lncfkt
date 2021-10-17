@@ -73,14 +73,14 @@ class Optimizer(val line: Line) {
 
   private fun optimizeUselessJump() {
     line.forEachWithPrevious { i, previous ->
-      if (i.instr == Instr.JUMP || i.instr == Instr.JZ || i.instr == Instr.JNZ)
+      if (i.instr == Instr.Jump || i.instr == Instr.Jz || i.instr == Instr.Jnz)
         if (i.next === i.branch && previous != null)
           previous.next = i.next
     }
   }
 
   private fun optimizeInlineNoopTargets() {
-    val candidate = line.find { it.instr == Instr.NOOP }
+    val candidate = line.find { it.instr == Instr.Noop }
     if (candidate != null) {
       line.skip(candidate)
     }
@@ -88,14 +88,14 @@ class Optimizer(val line: Line) {
 
   private fun optimizeDoubleReturn() {
     line.forEachWithPrevious { i, prev ->
-      if (i.instr == Instr.RET && prev?.instr == Instr.RET)
+      if (i.instr == Instr.Ret && prev?.instr == Instr.Ret)
         line.replace(prev, i)
     }
   }
 
   private fun optimizeStoreBeforeReturn() {
     line.forEachWith2Previous { i, j, k ->
-      if (i.instr == Instr.RET && j?.instr == Instr.LD_REG_0 && k?.instr == Instr.ST_REG_0) {
+      if (i.instr == Instr.Ret && j?.instr == Instr.LdReg0 && k?.instr == Instr.StReg0) {
         if (!line.targeted(j) && !line.targeted(k)) {
           line.skip(j)
           line.skip(k)
@@ -106,8 +106,8 @@ class Optimizer(val line: Line) {
 
   private fun optimizeInlineStLd() {
     line.forEachWithPrevious { i, prev ->
-      if (i.instr == Instr.LD_REG_0 && prev?.instr == Instr.ST_REG_0) {
-        val isUsed = i.find { it !== i && it.instr == Instr.LD_REG_0 }
+      if (i.instr == Instr.LdReg0 && prev?.instr == Instr.StReg0) {
+        val isUsed = i.find { it !== i && it.instr == Instr.LdReg0 }
         if (isUsed == null && !line.targeted(i) && !line.targeted(prev)) {
           line.skip(i)
           line.skip(prev)

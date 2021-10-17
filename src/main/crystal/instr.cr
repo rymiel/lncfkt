@@ -91,22 +91,22 @@ class LNCF::VM
     vm.stack << @i
   end
 
-  instr Noop, NOOP, 0x00
-  instr Return, RET, 0xfc do
+  instr Noop, Noop, 0x00
+  instr Return, Ret, 0xfc do
     return false
   end
 
-  instr LoadConstant, LD_CONST, 0x01, "#" do
+  instr LoadConstant, LdConst, 0x01, "#" do
     vm.stack << vm.constants[args.b]
   end
 
-  instr JumpTemp, JUMP, 0x15, "$$" do
+  instr JumpTemp, Jump, 0x15, "$$" do
     jump_by = args.read_bytes(UInt16, IO::ByteFormat::BigEndian)
     puts "Jumping forward 0x#{jump_by.to_s 16} bytes"
     vm.jump_by jump_by
   end
 
-  instr JumpTempZ, JZ, 0x16, "$$" do
+  instr JumpTempZ, Jz, 0x16, "$$" do
     jump_by = args.read_bytes(UInt16, IO::ByteFormat::BigEndian)
     value = vm.stack.pop
     if (value == 0)
@@ -115,7 +115,7 @@ class LNCF::VM
     end
   end
 
-  instr JumpTempNZ, JNZ, 0x17, "$$" do
+  instr JumpTempNZ, Jnz, 0x17, "$$" do
     jump_by = args.read_bytes(UInt16, IO::ByteFormat::BigEndian)
     value = vm.stack.pop
     if (value != 0)
@@ -124,36 +124,36 @@ class LNCF::VM
     end
   end
 
-  instr TestTempEQ, TEST_EQ, 0x31, "" do
+  instr TestTempEQ, TestEq, 0x31, "" do
     b = vm.stack.pop
     a = vm.stack.pop
     result = (a == b) ? 1 : 0
     vm.stack << result
   end
 
-  instr TestTempGT, TEST_GT, 0x32, "" do
+  instr TestTempGT, TestGt, 0x32, "" do
     b = vm.stack.pop.as Int
     a = vm.stack.pop.as Int
     result = (a > b) ? 1 : 0
     vm.stack << result
   end
 
-  instr TestTempLT, TEST_LT, 0x33, "" do
+  instr TestTempLT, TestLt, 0x33, "" do
     b = vm.stack.pop.as Int
     a = vm.stack.pop.as Int
     result = (a < b) ? 1 : 0
     vm.stack << result
   end
 
-  instr_known LoadReg, LD_REG,   0x02, "%"
-  instr_known LoadReg, LD_REG_0, 0x40, "", index = 0
+  instr_known LoadReg, LdReg,  0x02, "%"
+  instr_known LoadReg, LdReg0, 0x40, "", index = 0
 
-  instr_known StoreReg, ST_REG,   0x03, "%"
-  instr_known StoreReg, ST_REG_0, 0x60, "", index = 0
+  instr_known StoreReg, StReg,  0x03, "%"
+  instr_known StoreReg, StReg0, 0x60, "", index = 0
 
-  instr_known Call, CALL,    0x10, "#$"
-  instr_known Call, CALL_KW, 0x11, "#$$", kwargs = true
+  instr_known Call, Call,   0x10, "#$"
+  instr_known Call, CallKw, 0x11, "#$$", kwargs = true
 
-  instr_known ImmInteger, IMM_0, 0x80, "", i = 0
-  instr_known ImmInteger, IMM_1, 0x81, "", i = 1
+  instr_known ImmInteger, Imm0, 0x80, "", i = 0
+  instr_known ImmInteger, Imm1, 0x81, "", i = 1
 end

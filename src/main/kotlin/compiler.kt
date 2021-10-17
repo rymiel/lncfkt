@@ -25,24 +25,24 @@ data class StringPrimitive(override val value: String): Primitive<String>() {
 }
 
 enum class Instr(val opcode: UByte) {
-  NOOP     (0x00u),
-  RET      (0xfcu),
-  LD_CONST (0x01u),
-  LD_REG   (0x02u),
-  LD_REG_0 (0x40u),
-  ST_REG   (0x03u),
-  ST_REG_0 (0x60u),
-  I8_IMM   (0x20u),
-  IMM_0    (0x80u),
-  IMM_1    (0x81u),
-  CALL     (0x10u),
-  CALL_KW  (0x11u),
-  JUMP     (0x15u),
-  JZ       (0x16u),
-  JNZ      (0x17u),
-  TEST_EQ  (0x31u),
-  TEST_GT  (0x32u),
-  TEST_LT  (0x33u),
+  Noop    (0x00u),
+  Ret     (0xfcu),
+  LdConst (0x01u),
+  LdReg   (0x02u),
+  LdReg0  (0x40u),
+  StReg   (0x03u),
+  StReg0  (0x60u),
+  I8      (0x20u),
+  Imm0    (0x80u),
+  Imm1    (0x81u),
+  Call    (0x10u),
+  CallKw  (0x11u),
+  Jump    (0x15u),
+  Jz      (0x16u),
+  Jnz     (0x17u),
+  TestEq  (0x31u),
+  TestGt  (0x32u),
+  TestLt  (0x33u),
 }
 
 class Line(val instr: Instr, val args: ByteArray = byteArrayOf(), var next: Line? = null, var branch: Line? = null) {
@@ -131,7 +131,7 @@ class VirtualMachineCompiler {
     this.current = null
     this.context = fn
     compileBody(fn.body)
-    opcode(RET)
+    opcode(Ret)
     val res = currentEntrypoint!!
     Optimizer(res).optimizeBody()
     res.prettyPrint(fn)
@@ -153,8 +153,8 @@ class VirtualMachineCompiler {
           autoCall(it.name.namespace, it.name.qualifier, argSize, it.args.named.size)
         }
         is IfElseCall -> {
-          val fallthrough = Line(NOOP)
-          val elseMarker = if (it.elseBody == null) fallthrough else Line(NOOP)
+          val fallthrough = Line(Noop)
+          val elseMarker = if (it.elseBody == null) fallthrough else Line(Noop)
           it.clauses.forEach { c ->
             println(c.clause)
             resolveConditional(c, fallthrough, elseMarker)
@@ -174,7 +174,7 @@ class VirtualMachineCompiler {
         }
         is ReturnCall -> {
           autoConst(it.value)
-          opcode(RET)
+          opcode(Ret)
         }
         else -> println("Couldn't parse body of type ${it::class} $it")
       }
@@ -183,13 +183,13 @@ class VirtualMachineCompiler {
   }
 
   fun resolveConditional(c: Conditional, endMarker: Line, elseMarker: Line) {
-    val bodyMarker = Line(NOOP)
-    val fallthrough = Line(NOOP)
+    val bodyMarker = Line(Noop)
+    val fallthrough = Line(Noop)
     resolveClause(c.clause, fallthrough, bodyMarker, elseMarker)
-    newLine(Line(JZ, byteArrayOf(-1, -1), null, fallthrough))
+    newLine(Line(Jz, byteArrayOf(-1, -1), null, fallthrough))
     newLine(bodyMarker)
     compileBody(c.body)
-    newLine(Line(JUMP, byteArrayOf(-1, -1), null, endMarker))
+    newLine(Line(Jump, byteArrayOf(-1, -1), null, endMarker))
     newLine(fallthrough)
   }
 
@@ -205,14 +205,14 @@ class VirtualMachineCompiler {
       is BinaryClause -> {
         resolveClause(clause.a, fallthrough, bodyMarker, elseMarker)
         when (clause.operation) {
-          "or" -> newLine(Line(JNZ, byteArrayOf(-1, -1), null, bodyMarker))
+          "or" -> newLine(Line(Jnz, byteArrayOf(-1, -1), null, bodyMarker))
           else -> {}
         }
         resolveClause(clause.b, fallthrough, bodyMarker, elseMarker)
         when (clause.operation) {
-          "=" -> opcode(TEST_EQ)
-          ">" -> opcode(TEST_GT)
-          "<" -> opcode(TEST_LT)
+          "=" -> opcode(TestEq)
+          ">" -> opcode(TestGt)
+          "<" -> opcode(TestLt)
           "or" -> {}
           else -> TODO("Unknown binary operation ${clause.operation} in $clause")
         }
@@ -250,13 +250,13 @@ class VirtualMachineCompiler {
     }
     if (v is Constant<*> && v.value is Int) {
       when (v.value) {
-        0 -> opcode(IMM_0)
-        1 -> opcode(IMM_1)
-        else -> this.opcode(I8_IMM, v.value as Int)
+        0 -> opcode(Imm0)
+        1 -> opcode(Imm1)
+        else -> this.opcode(I8, v.value as Int)
       }
     } else {
       val thisConst = allocateConstant(v)
-      this.opcode(LD_CONST, thisConst)
+      this.opcode(LdConst, thisConst)
     }
   }
 
@@ -267,7 +267,7 @@ class VirtualMachineCompiler {
   fun autoConst(v: LiteralLike) {
     when (v) {
       is Constant<*> -> this.autoConst(v)
-      is Global -> this.opcode(LD_CONST, globals[v.name]!!)
+      is Global -> this.opcode(LdConst, globals[v.name]!!)
       is PassedIndexArgument -> this.autoLoadReg(v.index - 1 + this.context!!.args.size)
       is PassedNamedArgument -> this.autoLoadReg(this.context!!.args.indexOf(v.name))
       else -> println("Couldn't parse argument of type ${v::class} $v")
@@ -275,26 +275,26 @@ class VirtualMachineCompiler {
   }
 
   fun autoLoadReg(i: Int) {
-    if (i == 0) opcode(LD_REG_0)
-    else this.opcode(LD_REG, i)
+    if (i == 0) opcode(LdReg0)
+    else this.opcode(LdReg, i)
   }
 
   fun autoStoreReg(i: Int) {
-    if (i == 0) opcode(ST_REG_0)
-    else this.opcode(ST_REG, i)
+    if (i == 0) opcode(StReg0)
+    else this.opcode(StReg, i)
   }
 
   fun autoCall(namespace: String, qualifier: String, args: Int, kwargs: Int) {
     val identifier = "${namespace}:${qualifier}"
     if (kwargs == 0) {
       this.opcode(
-        CALL,
+        Call,
         allocateConstant(identifier),
         args,
       )
     } else {
       this.opcode(
-        CALL_KW,
+        CallKw,
         allocateConstant(identifier),
         args, kwargs
       )
@@ -339,9 +339,9 @@ private fun Line.prettyPrint(fn: FnDefinition) {
     val hash = it.real.hashCode()
     val branchHash = it.real.branch?.hashCode()
     val matchingLabel = if (hash in labels) labels.indexOf(hash).toString() + ":" else ""
-    val matchingJump = if (branchHash in labels) "->" + labels.indexOf(branchHash).toString() else ""
-    val args = if (it.args.isNotEmpty()) it.args.contentToString() else ""
-    println("\t$matchingLabel\t${it.instr}\t$args \t$matchingJump")
+    val matchingJump = if (branchHash in labels) "#" + labels.indexOf(branchHash).toString() else ""
+    val args = it.args.joinToString(", ")
+    println("\t$matchingLabel\t${it.instr.toString().padEnd(8)} $args\t$matchingJump")
   }
   println("===" + fn.name + "===")
 }
