@@ -58,12 +58,12 @@ define flow normalize {
   }
 }
 
-define flow apply_suffix {
-  if stressed($1) { flow destress }
-  flow :append { $1 }
+define flow apply_suffix (suffix) {
+  if stressed($suffix) { flow destress }
+  flow :append { $suffix }
 
   macro lib:rune {
-    {replace, "@", fn :char {$1, 1}}
+    {replace, "@", fn :char {$suffix, 1}}
     {trigger, "<", flow stress_first}
     {trigger, ">", flow stress_last}
   }

@@ -52,7 +52,7 @@ global_definition
     ;
 
 functional_definition
-    : name=WORD NL* BEGIN NL* body NL* END
+    : name=WORD (LP args+=WORD (separator args+=WORD?)* RP)? NL* BEGIN NL* body NL* END
     ;
 
 body
@@ -144,12 +144,13 @@ if_else_call
     ;
 
 clause
-    : literal_like                                      #LiteralClause
-    | clause CONCAT clause                              #OperativeClause
-    | clause (EQ | GT | LT) clause                      #ComparisonClause
-    | clause OR clause                                  #BooleanClause
-    | LP clause RP                                      #ParentheticalClause
-    | fn=WORD LP d+=literal_like (separator d+=literal_like?)* RP   #FunctionCallClause
+    : literal_like                          #LiteralClause
+    | clause CONCAT clause                  #OperativeClause
+    | clause (EQ | GT | LT) clause          #ComparisonClause
+    | clause OR clause                      #BooleanClause
+    | LP clause RP                          #ParentheticalClause
+    | fn=WORD LP d+=literal_like
+        (separator d+=literal_like?)* RP    #FunctionCallClause
     ;
 
 POS_ARG     : '$'[0-9]+ ;
