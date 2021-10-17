@@ -38,7 +38,7 @@ class HighlighterListener(val tokens: CommonTokenStream) : LNCFBaseListener() {
       LNCFLexer.STRING -> GREEN
       LNCFLexer.DEFINE_FLOW, LNCFLexer.DEFINE_FN, LNCFLexer.DEFINE_GLOBAL, LNCFLexer.MANUAL_ENUM,
       LNCFLexer.CLASSIFY, LNCFLexer.WHERE, LNCFLexer.FUNCTIONAL_ENUM, LNCFLexer.FUNCTIONAL_SPACE_FOR -> ORANGE
-      LNCFLexer.SUFFIX, LNCFLexer.INCLUDE, LNCFLexer.EXCLUDE -> ITALIC
+      // LNCFLexer.SUFFIX, LNCFLexer.INCLUDE, LNCFLexer.EXCLUDE -> ITALIC
       LNCFLexer.POS_ARG, LNCFLexer.NAME_ARG, LNCFLexer.TRUE, LNCFLexer.FALSE -> GREEN_BRIGHT
       LNCFLexer.PERMUTE -> ITALIC
       LNCFLexer.BEGIN, LNCFLexer.END -> GRAY
@@ -64,7 +64,7 @@ class HighlighterListener(val tokens: CommonTokenStream) : LNCFBaseListener() {
     when (ctx) {
       is LNCFParser.Enum_keyContext -> ctx color CYAN_BRIGHT
       is LNCFParser.Global_definitionContext -> ctx.WORD() color PURPLE_BRIGHT
-      is LNCFParser.Functional_definitionContext -> ctx.WORD() color YELLOW
+      is LNCFParser.Functional_definitionContext -> ctx.name color YELLOW
       is LNCFParser.FlowCallContext -> ctx.FLOW() color DARK_ORANGE
       is LNCFParser.FnCallContext -> ctx.FN() color DARK_ORANGE
       is LNCFParser.Functional_callContext -> when (val i = ctx.identifier()) {

@@ -36,8 +36,8 @@ data class RecursiveMacroBody(val next: List<MacroBody>) : MacroBody()
 
 sealed class Definition(open val name: String)
 data class GlobalDefinition(override val name: String, val value: Literal): Definition(name)
-data class FlowDefinition(override val name: String, val body: List<Call>): Definition(name)
-data class FnDefinition(override val name: String, val body: List<Call>): Definition(name)
+data class FlowDefinition(override val name: String, val args: List<String>, val body: List<Call>): Definition(name)
+data class FnDefinition(override val name: String, val args: List<String>, val body: List<Call>): Definition(name)
 @Deprecated("unimplemented")
 data class UnimplementedDefinition(val msg: String = "UNIMPLEMENTED!") : Definition("?")
 
@@ -166,11 +166,11 @@ fun transform(d: LNCFParser.DefinitionContext): Definition {
     }
     is LNCFParser.FlowDefinitionContext -> {
       val flow = d.functional_definition()
-      FlowDefinition(flow.name.text, flow.body().d.map { transform(it) })
+      FlowDefinition(flow.name.text, flow.args.map { it.text }, flow.body().d.map { it.transform() })
     }
     is LNCFParser.FnDefinitionContext -> {
       val fn = d.functional_definition()
-      FnDefinition(fn.name.text, fn.body().d.map { transform(it) })
+      FnDefinition(fn.name.text, fn.args.map { it.text }, fn.body().d.map { it.transform() })
     }
     else -> UnimplementedDefinition("definition $d ${d::class}")
   }

@@ -82,16 +82,30 @@ fun GlobalDefinition.tree(t: TreeState) {
 
 fun FlowDefinition.tree(t: TreeState) {
   t.nest("define flow", name) { tc ->
-    body.forEach {
-      it.tree(tc)
+    tc.nest("args") { ttc ->
+      args.forEach {
+        ttc.emit(it)
+      }
+    }
+    tc.nest("body") { ttc ->
+      body.forEach {
+        it.tree(ttc)
+      }
     }
   }
 }
 
 fun FnDefinition.tree(t: TreeState) {
   t.nest("define fn", name) { tc ->
-    body.forEach {
-      it.tree(tc)
+    tc.nest("args") { ttc ->
+      args.forEach {
+        ttc.emit(it)
+      }
+    }
+    tc.nest("body") { ttc ->
+      body.forEach {
+        it.tree(ttc)
+      }
     }
   }
 }

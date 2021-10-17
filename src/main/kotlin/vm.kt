@@ -63,25 +63,6 @@ data class VirtualMachineFunction(
   val bytecode: ByteArray,
   override val parameterMapping: List<Pair<String, Primitive<*>?>>
 ): VirtualMachineMethod(parameterMapping)
-{
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (javaClass != other?.javaClass) return false
-
-    other as VirtualMachineFunction
-
-    if (registers != other.registers) return false
-    if (!bytecode.contentEquals(other.bytecode)) return false
-
-    return true
-  }
-
-  override fun hashCode(): Int {
-    var result = registers
-    result = 31 * result + bytecode.contentHashCode()
-    return result
-  }
-}
 
 class VirtualMachineCompiler {
   val constants = mutableListOf<Primitive<*>>()
@@ -281,7 +262,6 @@ class VirtualMachineCompiler {
       val before = line.toByteArray()
 
       println("B ${line.toByteArray().contentToString()}")
-      // optimizeLdAfterSt(line) // Temporarily disabled because it broke functionality
       optimizeUselessJump(line)
       optimizeInlineNoopTargets(line)
 
@@ -291,25 +271,6 @@ class VirtualMachineCompiler {
         println("o ${line.toByteArray().contentToString()}")
         return line
       }
-    }
-  }
-
-  private fun optimizeLdAfterSt(line: Line) {
-    var sawStore: Line? = null
-    var i = line
-    var previous: Line? = null
-    while (true) {
-      if (i.instr == ST_REG_0) {
-        sawStore = previous
-      } else if (i.instr == LD_REG_0 && sawStore != null) {
-        sawStore.next = i.next
-        sawStore = null
-      } else if (sawStore != null) {
-        sawStore = null
-      }
-      previous = i
-      if (i.next == null) break
-      i = i.next!!
     }
   }
 
