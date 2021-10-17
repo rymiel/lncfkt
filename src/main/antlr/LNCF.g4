@@ -108,10 +108,12 @@ compound_classifier
     ;
 
 call
-    : FLOW functional_call    #FlowCall
-    | FN functional_call      #FnCall
-    | macro_call                #MacroCall
-    | if_else_call              #IfElseCall
+    : FLOW functional_call  #FlowCall
+    | FN functional_call    #FnCall
+    | macro_call            #MacroCall
+    | if_else_call          #IfElseCall
+    | SET WORD EQ? call     #SetCall
+    | RETURN literal_like   #ReturnCall
     ;
 
 functional_call
@@ -176,9 +178,8 @@ ELSE        : 'else' ;
 FLOW        : 'flow' ;
 FN          : 'fn' ;
 MACRO       : 'macro' ;
-// SUFFIX      : 'suffix' ;
-// INCLUDE     : 'include' ;
-// EXCLUDE     : 'exclude' ;
+SET         : 'set' ;
+RETURN      : 'return' ;
 CLASSIFY    : 'classify' ;
 WHERE       : 'where' ;
 PERMUTE     : 'permute' ;
