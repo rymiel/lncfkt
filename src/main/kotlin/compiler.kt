@@ -182,10 +182,6 @@ class VirtualMachineCompiler {
           autoConst(it.value)
           opcode(RET)
         }
-//        is MacroCall -> {
-//          // TODO: THIS IS VERY TEMPORARY
-//          opcode(LD_REG_0)
-//        }
         else -> println("Couldn't parse body of type ${it::class} $it")
       }
     }

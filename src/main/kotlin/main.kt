@@ -8,6 +8,11 @@ import org.antlr.v4.runtime.tree.ParseTreeWalker
 import org.antlr.v4.runtime.tree.TerminalNode
 import java.io.File
 
+val singleton = {}
+
+fun getResourceAsText(path: String): String {
+  return singleton::class.java.getResource(path)!!.readText()
+}
 
 const val RESET = "\u001B[0m"
 const val RESET_COLOR = "\u001B[39m"
