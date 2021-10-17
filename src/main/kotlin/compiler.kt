@@ -47,22 +47,20 @@ enum class Instr(val opcode: UByte) {
 
 class Line(val instr: Instr, val args: ByteArray = byteArrayOf(), var next: Line? = null, var branch: Line? = null) {
   override fun toString(): String {
-    return "{$instr ${args.contentToString()}} ${inspectHash()} ->"
+    return "{${inspectHash()} $instr ${args.contentToString()}} -> ${next.inspectHash()} => ${branch.inspectHash()}}"
   }
 }
-data class LineStub(val real: Line, val instr: Instr, val args: ByteArray = byteArrayOf()) {
+class LineStub(val real: Line, val instr: Instr, val args: ByteArray = byteArrayOf()) {
   override fun toString(): String {
     return ":{$instr ${args.contentToString()}${real.inspectHash()} -> ${real.next.inspectHash()} => ${real.branch.inspectHash()}}"
   }
 }
-data class FlatLineContainer(val lines: MutableList<LineStub>, val unresolved: MutableList<Line>)
 
-sealed class VirtualMachineMethod(open val parameterMapping: List<Pair<String, Primitive<*>?>>)
-data class VirtualMachineFunction(
+class VirtualMachineFunction(
   val registers: Int,
   val bytecode: ByteArray,
-  override val parameterMapping: List<Pair<String, Primitive<*>?>>
-): VirtualMachineMethod(parameterMapping)
+  val parameterMapping: List<Pair<String, Primitive<*>?>>
+)
 
 class VirtualMachineCompiler {
   val constants = mutableListOf<Primitive<*>>()
@@ -135,12 +133,8 @@ class VirtualMachineCompiler {
     compileBody(fn.body)
     opcode(RET)
     val res = currentEntrypoint!!
-    optimizeBody(res)
-    println("===" + fn.name + "===")
-    res.flatten().lines.forEach {
-      println("${it.instr} ${it.args.contentToString()}")
-    }
-    println("===" + fn.name + "===")
+    Optimizer(res).optimizeBody()
+    res.prettyPrint(fn)
     declared[fn.name] = VirtualMachineFunction(0, res.toByteArray(), listOf())
   }
 
@@ -235,136 +229,10 @@ class VirtualMachineCompiler {
     }
   }
 
-  fun optimizeBody(line: Line): Line {
-    println("Begin optimization:")
-    while (true) {
-      val before = line.toByteArray()
-
-      println("B ${line.toByteArray().contentToString()}")
-      optimizeUselessJump(line)
-      optimizeInlineNoopTargets(line)
-
-      val optimized = line.toByteArray()
-
-      if (before.contentEquals(optimized)) {
-        println("o ${line.toByteArray().contentToString()}")
-        return line
-      }
-    }
-  }
-
-  private fun optimizeUselessJump(line: Line) {
-    var i = line
-    var previous: Line? = null
-    while (true) {
-      if (i.instr == JUMP || i.instr == JZ || i.instr == JNZ)
-        if (i.next === i.branch && previous != null)
-          previous.next = i.next
-      previous = i
-      if (i.next == null) break
-      i = i.next!!
-    }
-  }
-
-  private fun optimizeInlineNoopTargets(line: Line) {
-    var i = line
-    var candidate: Line? = null
-    var replacement: Line? = null
-    while (true) {
-      if (i.instr == NOOP) {
-        candidate = i
-        replacement = i.next
-        break
-      }
-      if (i.next == null) break
-      i = i.next!!
-    }
-    if (candidate != null) {
-      var j = line
-      while (true) {
-        if (j.branch === candidate) j.branch = replacement
-        if (j.next === candidate) j.next = replacement
-        if (j.next == null) break
-        j = j.next!!
-      }
-    }
-  }
-
-  fun Line.toByteArray(): ByteArray {
-    return this.flatten().resolve()
-  }
-
-  fun FlatLineContainer.resolve(): ByteArray {
-    val flat = mutableListOf<Byte>()
-    val positions = mutableMapOf<Line, Int>()
-    val pending = mutableMapOf<Line, MutableList<Int>>()
-    // println("Resolving $this")
-    this.lines.forEach {
-      // println("${it.real.inspectHash()}$it")
-      if (it.real in pending) {
-        // println("Applying pending")
-        pending[it.real]!!.forEach { pendingTo ->
-          val newPos = posToTwoBytes(flat.size - pendingTo + 1)
-          // println(newPos)
-          // println(flat)
-          flat[pendingTo] = newPos[0]
-          flat[pendingTo+1] = newPos[1]
-          // println(flat)
-        }
-      }
-      if (it.real in this.unresolved) {
-        // println("Unresolved")
-        val b = it.real.branch!!
-        if (b in positions) {
-          // println("Found previous position")
-          flat.add(it.instr.opcode.toByte())
-          flat.addAll(posToTwoBytes(flat.size - positions[b]!!))
-        } else {
-          // println("Added as pending")
-          flat.add(it.instr.opcode.toByte())
-          pending.computeIfAbsent(b) { mutableListOf() }.add(flat.size)
-          // println(pending.mapKeys { x -> x.inspectHash() })
-          flat.addAll(it.args.toList())
-        }
-      } else {
-        flat.add(it.instr.opcode.toByte())
-        flat.addAll(it.args.toList())
-      }
-    }
-    return flat.toByteArray()
-  }
-
-  fun posToTwoBytes(i : Int): List<Byte> {
-    return listOf(
-      ((i shr 8) and 0xFF).toByte(),
-      (i and 0xFF).toByte(),
-    )
-  }
-
-  fun Line.flatten(f: FlatLineContainer) {
-    f.lines.add(LineStub(this, this.instr, this.args))
-    if (this.next != null) {
-      this.next!!.flatten(f)
-    }
-    if (this.branch != null) {
-      f.unresolved.add(this)
-    }
-  }
-
-  fun Line.flatten(): FlatLineContainer {
-    val flattener = FlatLineContainer(mutableListOf(), mutableListOf())
-    this.flatten(flattener)
-    return flattener
-  }
-
   fun newLine(line: Line) {
     if (this.current != null) this.current!!.next = line
     else this.currentEntrypoint = line
     this.current = line
-  }
-
-  fun opcode(i: Instr, vararg a: Byte) {
-    newLine(Line(i, a))
   }
 
   fun opcode(i: Instr) {
@@ -456,4 +324,24 @@ class VirtualMachineCompiler {
       TODO()
     }
   }
+}
+
+private fun Line.prettyPrint(fn: FnDefinition) {
+  println("===" + fn.name + "===")
+  val lines = this.flatten().lines
+  val labels = mutableSetOf<Int>()
+  lines.forEach {
+    if (it.real.branch != null) {
+      labels.add(it.real.branch.hashCode())
+    }
+  }
+  lines.forEach {
+    val hash = it.real.hashCode()
+    val branchHash = it.real.branch?.hashCode()
+    val matchingLabel = if (hash in labels) labels.indexOf(hash).toString() + ":" else ""
+    val matchingJump = if (branchHash in labels) "->" + labels.indexOf(branchHash).toString() else ""
+    val args = if (it.args.isNotEmpty()) it.args.contentToString() else ""
+    println("\t$matchingLabel\t${it.instr}\t$args \t$matchingJump")
+  }
+  println("===" + fn.name + "===")
 }
