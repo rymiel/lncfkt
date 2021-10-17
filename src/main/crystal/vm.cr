@@ -32,7 +32,9 @@ module LNCF
       remaining_args = 0
       loop do
         if !instruction.nil? && remaining_args == 0
+          {% if flag?(:vm_verbose) %}
           puts "#{depth_prefix}#{@ip.to_s(16).rjust 4}|    R#{registers}  [#{stack.join "|"}|>"
+          {% end %}
           puts "#{depth_prefix}#{@ip.to_s(16).rjust 4}| #{instruction.mnemonic.ljust 12, ' '}#{args.empty? ? "" : args}"
           arg_io = IO::Memory.new
           args.each { |i| arg_io.write_byte i }

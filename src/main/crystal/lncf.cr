@@ -22,6 +22,9 @@ vm = LNCF::VM.new c, {
     "has_match" => LNCF::Lib.auto_lib(has_match),
     "match_count" => LNCF::Lib.auto_lib(match_count),
   },
+  "op" => {
+    "append" => LNCF::Lib.auto_lib(op_append)
+  },
   "local" => d.transform_values { |i| LNCF::VM.defined_method(*i) }
 }
 
@@ -33,5 +36,5 @@ d.each { |k, v|
 puts
 puts "Executing"
 puts
-vm.execute(d["normalize"][0], [ARGV[0]])
+vm.execute(d[ARGV[0]][0], ARGV[1..])
 pp! vm.stack

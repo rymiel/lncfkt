@@ -36,6 +36,10 @@ module LNCF::Lib
     s.scan(Regex.new(pattern)).size
   end
 
+  def op_append(a : String, b : String) : String
+    a + b
+  end
+
   macro auto_lib(method)
     {% m = Lib.methods.find {|i| i.name == method.id} %}
     {% named_args = false %}
