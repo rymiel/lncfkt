@@ -1,9 +1,11 @@
+@file:Suppress("NAME_SHADOWING")
+
 package space.rymiel.lncf
 
-import space.rymiel.lncf.Position.*
+import space.rymiel.lncf.TreeNode.Position.*
 
-enum class Position { FIRST, LAST, OTHER }
 data class TreeNode(val key: String, val children: List<TreeNode>) {
+  enum class Position { FIRST, LAST, OTHER }
   fun tree(pos: Position, inherit: String) {
     val c = when (pos) {
       FIRST -> ""
@@ -38,12 +40,20 @@ data class TreeState(val body: MutableList<TreeNode> = mutableListOf()) {
     body.add(TreeNode(s, child))
   }
 
-  fun emit(k: String, v: String, child: List<TreeNode> = listOf()) {
-    body.add(TreeNode("$k $RESET$ITALIC$v", child))
+  fun emit(s: String, pos: SinglePos, child: List<TreeNode> = listOf()) {
+    body.add(TreeNode("$s \t$RESET$ITALIC$GRAY$pos$RESET", child))
   }
 
-  fun emit(k: String, v: String, color: String, child: List<TreeNode> = listOf()) {
-    body.add(TreeNode("$k $color$v", child))
+  fun emit(k: String, v: String, child: List<TreeNode> = listOf()) {
+    body.add(TreeNode("$k $RESET$ITALIC$v$RESET", child))
+  }
+
+  fun emit(k: String, v: String, pos: SinglePos, child: List<TreeNode> = listOf()) {
+    body.add(TreeNode("$k $RESET$ITALIC$v \t$RESET$ITALIC$GRAY$pos$RESET", child))
+  }
+
+  fun emit(k: String, v: String, color: String, pos: SinglePos, child: List<TreeNode> = listOf()) {
+    body.add(TreeNode("$k $color$v \t$RESET$ITALIC$GRAY$pos$RESET", child))
   }
 
   fun print() {
@@ -58,10 +68,22 @@ data class TreeState(val body: MutableList<TreeNode> = mutableListOf()) {
     emit(implicit, child = child.body)
   }
 
+  fun nest(implicit: String, pos: SinglePos, nest: (TreeState) -> Unit) {
+    val child = TreeState()
+    nest.invoke(child)
+    emit(implicit, child = child.body, pos = pos)
+  }
+
   fun nest(k: String, v: String, nest: (TreeState) -> Unit) {
     val child = TreeState()
     nest.invoke(child)
     emit(k, v, child = child.body)
+  }
+
+  fun nest(k: String, v: String, pos: SinglePos, nest: (TreeState) -> Unit) {
+    val child = TreeState()
+    nest.invoke(child)
+    emit(k, v, child = child.body, pos = pos)
   }
 }
 
@@ -114,7 +136,7 @@ fun Call.tree(t: TreeState) {
 }
 
 fun SetCall.tree(t: TreeState) {
-  t.nest("set") {
+  t.nest("set", pos = pos) {
     it.emit(name)
     body.tree(it)
   }
@@ -128,7 +150,7 @@ fun ReturnCall.tree(t: TreeState) {
 
 fun MacroCall.tree(t: TreeState) {
   val identifier = "${name.namespace}:${name.qualifier}"
-  t.nest("macro", identifier) { tc ->
+  t.nest("macro", identifier, pos = pos) { tc ->
     body.forEach {
       it.tree(tc)
     }
@@ -152,7 +174,6 @@ fun MacroBody.tree(t: TreeState) {
 fun Literal.tree(t: TreeState) {
   when (this) {
     is Constant<*> -> this.tree(t)
-    is UnimplementedLiteral -> this.tree(t)
   }
 }
 fun LiteralLike.tree(t: TreeState) {
@@ -166,10 +187,10 @@ fun LiteralLike.tree(t: TreeState) {
 
 fun FnCall.tree(t: TreeState) {
   val identifier = "${name.namespace}:${name.qualifier}"
-  t.nest("call fn", identifier) { tc ->
+  t.nest("call fn", identifier, pos = pos) { tc ->
     args.positional.forEachIndexed { i, it ->
-      tc.nest(i.toString()) { ttc ->
-        it.tree(ttc)
+      tc.nest(i.toString()) { tc ->
+        it.tree(tc)
       }
     }
     args.named.forEach { (k, it) ->
@@ -180,21 +201,21 @@ fun FnCall.tree(t: TreeState) {
   }
 }
 fun IfElseCall.tree(t: TreeState) {
-  t.nest("if") { tc ->
+  t.nest("if", pos = pos) { tc ->
     clauses.forEach {
-      tc.nest("clause") { ttc ->
-        it.clause.tree(ttc)
-        ttc.nest("then") { tttc ->
+      tc.nest("clause") { tc ->
+        it.clause.tree(tc)
+        tc.nest("then") { tc ->
           it.body.forEach { call ->
-            call.tree(tttc)
+            call.tree(tc)
           }
         }
       }
     }
     if (elseBody != null) {
-      tc.nest("else") { ttc ->
+      tc.nest("else") { tc ->
         elseBody.forEach {
-          it.tree(ttc)
+          it.tree(tc)
         }
       }
     }
@@ -210,22 +231,19 @@ fun FunctionalCallClause.tree(t: TreeState) {
   val identifier = "${function.namespace}:${function.qualifier}"
   t.nest("call", identifier) { tc ->
     args.forEachIndexed { i, it ->
-      tc.nest(i.toString()) { ttc ->
-        it.tree(ttc)
+      tc.nest(i.toString()) { tc ->
+        it.tree(tc)
       }
     }
   }
 }
 fun PassedIndexArgument.tree(t: TreeState) {
-  t.emit("passed argument", index.toString())
+  t.emit("passed argument", index.toString(), pos)
 }
 fun PassedNamedArgument.tree(t: TreeState) {
-  t.emit("passed argument", name)
+  t.emit("passed argument", name, pos)
 }
 
-fun UnimplementedLiteral.tree(t: TreeState) {
-  t.emit("literal$RED unimplemented $msg")
-}
 fun UnimplementedCall.tree(t: TreeState) {
   t.emit("call$RED unimplemented $msg")
 }
@@ -238,9 +256,9 @@ fun <T> Constant<T>.tree(t: TreeState) {
     is String -> "\"$value\""
     else -> value.toString()
   }
-  t.emit("const", str, GREEN)
+  t.emit("const", str, GREEN, pos)
 }
 
 fun Global.tree(t: TreeState) {
-  t.emit("global", name)
+  t.emit("global", name, pos)
 }

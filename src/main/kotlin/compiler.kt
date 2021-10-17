@@ -1,5 +1,6 @@
 package space.rymiel.lncf
 
+import org.antlr.v4.runtime.CommonToken
 import space.rymiel.lncf.Instr.*
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
@@ -45,11 +46,13 @@ enum class Instr(val opcode: UByte) {
   TestLt  (0x33u),
 }
 
-class Line(val instr: Instr, val args: ByteArray = byteArrayOf(), var next: Line? = null, var branch: Line? = null) {
+open class Line(val instr: Instr, val args: ByteArray = byteArrayOf(), var next: Line? = null, var branch: Line? = null) {
   override fun toString(): String {
-    return "{${inspectHash()} $instr ${args.contentToString()}} -> ${next.inspectHash()} => ${branch.inspectHash()}}"
+    val branchHash = if (branch != null) " => ${branch.inspectHash()}" else ""
+    return "${inspectHash()} ${instr.toString().padEnd(6)} ${args.contentToString()}$branchHash"
   }
 }
+class PositionedLine(val pos: SinglePos, instr: Instr, args: ByteArray = byteArrayOf(), next: Line? = null, branch: Line? = null) : Line(instr, args, next, branch)
 class LineStub(val real: Line, val instr: Instr, val args: ByteArray = byteArrayOf()) {
   override fun toString(): String {
     return ":{$instr ${args.contentToString()}${real.inspectHash()} -> ${real.next.inspectHash()} => ${real.branch.inspectHash()}}"
@@ -133,6 +136,7 @@ class VirtualMachineCompiler {
     compileBody(fn.body)
     opcode(Ret)
     val res = currentEntrypoint!!
+    // res.prettyPrint(fn)
     Optimizer(res).optimizeBody()
     res.prettyPrint(fn)
     declared[fn.name] = VirtualMachineFunction(0, res.toByteArray(), listOf())
@@ -150,7 +154,7 @@ class VirtualMachineCompiler {
             autoConst(v)
           }
           val argSize = it.args.positional.size
-          autoCall(it.name.namespace, it.name.qualifier, argSize, it.args.named.size)
+          autoCall(it.name.namespace, it.name.qualifier, argSize, it.args.named.size, it.pos)
         }
         is IfElseCall -> {
           val fallthrough = Line(Noop)
@@ -170,11 +174,11 @@ class VirtualMachineCompiler {
         }
         is SetCall -> {
           compileBody(listOf(it.body))
-          autoStoreReg(context!!.args.indexOf(it.name))
+          autoStoreReg(context!!.args.indexOf(it.name), pos = it.pos)
         }
         is ReturnCall -> {
           autoConst(it.value)
-          opcode(Ret)
+          opcode(Ret, pos = it.pos)
         }
         else -> println("Couldn't parse body of type ${it::class} $it")
       }
@@ -186,10 +190,10 @@ class VirtualMachineCompiler {
     val bodyMarker = Line(Noop)
     val fallthrough = Line(Noop)
     resolveClause(c.clause, fallthrough, bodyMarker, elseMarker)
-    newLine(Line(Jz, byteArrayOf(-1, -1), null, fallthrough))
+    newLine(Line(Jz, ByteArray(2), null, fallthrough))
     newLine(bodyMarker)
     compileBody(c.body)
-    newLine(Line(Jump, byteArrayOf(-1, -1), null, endMarker))
+    newLine(Line(Jump, ByteArray(2), null, endMarker))
     newLine(fallthrough)
   }
 
@@ -222,7 +226,7 @@ class VirtualMachineCompiler {
         val previousInFunctional = inFunctional
         inControl = true
         inFunctional = true
-        compileBody(listOf(FnCall(clause.function, Arguments(clause.args))))
+        compileBody(listOf(FnCall(clause.function, Arguments(clause.args), NULL_TOKEN)))
         inControl = previousInControl
         inFunctional = previousInFunctional
       }
@@ -239,70 +243,81 @@ class VirtualMachineCompiler {
     newLine(Line(i))
   }
 
+  fun opcode(i: Instr, pos: SinglePos) {
+    if (pos === NULL_SINGLE_POS || pos.token === NULL_TOKEN) return opcode(i)
+    newLine(PositionedLine(pos, i))
+  }
+
   fun opcode(i: Instr, vararg a: Int) {
     newLine(Line(i, a.toList().map { it.toByte() }.toByteArray()))
+  }
+
+  fun opcode(i: Instr, vararg a: Int, pos: SinglePos) {
+    if (pos === NULL_SINGLE_POS || pos.token === NULL_TOKEN) return opcode(i, *a)
+    newLine(PositionedLine(pos, i, a.toList().map { it.toByte() }.toByteArray()))
   }
 
   fun autoConst(vRaw: Literal) {
     var v = vRaw
     if (v is Constant<*> && v.value is Boolean) {
-      v = Constant(if (v.value as Boolean) 1 else 0)
+      v = Constant(if (v.value as Boolean) 1 else 0, v.token)
     }
     if (v is Constant<*> && v.value is Int) {
       when (v.value) {
-        0 -> opcode(Imm0)
-        1 -> opcode(Imm1)
-        else -> this.opcode(I8, v.value as Int)
+        0 -> opcode(Imm0, pos = v.pos)
+        1 -> opcode(Imm1, pos = v.pos)
+        else -> this.opcode(I8, v.value as Int, pos = v.pos)
       }
     } else {
       val thisConst = allocateConstant(v)
-      this.opcode(LdConst, thisConst)
+      this.opcode(LdConst, thisConst, pos = v.pos)
     }
   }
 
   fun autoConst(v: String) {
-    this.autoConst(Constant(v))
+    this.autoConst(Constant(v, NULL_TOKEN))
   }
 
   fun autoConst(v: LiteralLike) {
     when (v) {
       is Constant<*> -> this.autoConst(v)
-      is Global -> this.opcode(LdConst, globals[v.name]!!)
-      is PassedIndexArgument -> this.autoLoadReg(v.index - 1 + this.context!!.args.size)
-      is PassedNamedArgument -> this.autoLoadReg(this.context!!.args.indexOf(v.name))
-      else -> println("Couldn't parse argument of type ${v::class} $v")
+      is Global -> this.opcode(LdConst, globals[v.name]!!, pos = v.pos)
+      is PassedIndexArgument -> this.autoLoadReg(v.index - 1 + this.context!!.args.size, pos = v.pos)
+      is PassedNamedArgument -> this.autoLoadReg(this.context!!.args.indexOf(v.name), pos = v.pos)
     }
   }
 
-  fun autoLoadReg(i: Int) {
-    if (i == 0) opcode(LdReg0)
-    else this.opcode(LdReg, i)
+  fun autoLoadReg(i: Int, pos: SinglePos) {
+    if (i == 0) opcode(LdReg0, pos = pos)
+    else this.opcode(LdReg, i, pos = pos)
   }
 
-  fun autoStoreReg(i: Int) {
-    if (i == 0) opcode(StReg0)
-    else this.opcode(StReg, i)
+  fun autoStoreReg(i: Int, pos: SinglePos) {
+    if (i == 0) opcode(StReg0, pos = pos)
+    else this.opcode(StReg, i, pos = pos)
   }
 
-  fun autoCall(namespace: String, qualifier: String, args: Int, kwargs: Int) {
+  fun autoCall(namespace: String, qualifier: String, args: Int, kwargs: Int, pos: SinglePos) {
     val identifier = "${namespace}:${qualifier}"
     if (kwargs == 0) {
       this.opcode(
         Call,
         allocateConstant(identifier),
         args,
+        pos = pos
       )
     } else {
       this.opcode(
         CallKw,
         allocateConstant(identifier),
-        args, kwargs
+        args, kwargs,
+        pos = pos
       )
     }
   }
 
   fun allocateConstant(value: String): Int {
-    return allocateConstant(Constant(value))
+    return allocateConstant(Constant(value, CommonToken(0)))
   }
 
   fun allocateConstant(value: Literal): Int {
@@ -338,10 +353,16 @@ private fun Line.prettyPrint(fn: FnDefinition) {
   lines.forEach {
     val hash = it.real.hashCode()
     val branchHash = it.real.branch?.hashCode()
-    val matchingLabel = if (hash in labels) labels.indexOf(hash).toString() + ":" else ""
-    val matchingJump = if (branchHash in labels) "#" + labels.indexOf(branchHash).toString() else ""
-    val args = it.args.joinToString(", ")
-    println("\t$matchingLabel\t${it.instr.toString().padEnd(8)} $args\t$matchingJump")
+    val matchingLabel = if (hash in labels) "L" + labels.indexOf(hash).toString() + ":" else ""
+    val matchingJump = if (branchHash in labels) "#L" + labels.indexOf(branchHash).toString() else ""
+    val relevantArgs = if (branchHash != null) it.args.drop(2) else it.args.toList()
+    val args = relevantArgs.joinToString(", ")
+    val underlying = if (it.real is PositionedLine) {
+      "| " + GRAY + ITALIC + it.real.pos.toString().padEnd(12) + RESET
+    } else {
+      "| " + " ".repeat(12) // it.real.toString().padEnd(50)
+    }
+    println("$underlying| ${matchingLabel.padEnd(6)}${it.instr.toString().padEnd(8)} $args${if (args.isNotEmpty()) "\t" else ""}$matchingJump")
   }
   println("===" + fn.name + "===")
 }

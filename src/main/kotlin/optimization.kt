@@ -89,7 +89,7 @@ class Optimizer(val line: Line) {
   private fun optimizeDoubleReturn() {
     line.forEachWithPrevious { i, prev ->
       if (i.instr == Instr.Ret && prev?.instr == Instr.Ret)
-        line.replace(prev, i)
+        line.skip(i)
     }
   }
 
