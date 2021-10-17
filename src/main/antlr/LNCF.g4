@@ -99,9 +99,8 @@ classification
     ;
 
 classifier
-    : SUFFIX literal_like           #SuffixClassifier
-    | INCLUDE compound_classifier   #IncludeClassifier
-    | EXCLUDE compound_classifier   #ExcludeClassifier
+    : WORD literal_like         #LiteralClassifier
+    | WORD? compound_classifier #CompoundClassifier
     ;
 
 compound_classifier
@@ -176,9 +175,9 @@ ELSE        : 'else' ;
 FLOW        : 'flow' ;
 FN          : 'fn' ;
 MACRO       : 'macro' ;
-SUFFIX      : 'suffix' ;
-INCLUDE     : 'include' ;
-EXCLUDE     : 'exclude' ;
+// SUFFIX      : 'suffix' ;
+// INCLUDE     : 'include' ;
+// EXCLUDE     : 'exclude' ;
 CLASSIFY    : 'classify' ;
 WHERE       : 'where' ;
 PERMUTE     : 'permute' ;
