@@ -124,7 +124,22 @@ fun Call.tree(t: TreeState) {
     is FnCall -> this.tree(t)
     is IfElseCall -> this.tree(t)
     is MacroCall -> this.tree(t)
+    is ReturnCall -> this.tree(t)
+    is SetCall -> this.tree(t)
     is UnimplementedCall -> this.tree(t)
+  }
+}
+
+fun SetCall.tree(t: TreeState) {
+  t.nest("set") {
+    it.emit(name)
+    body.tree(it)
+  }
+}
+
+fun ReturnCall.tree(t: TreeState) {
+  t.nest("return") {
+    value.tree(it)
   }
 }
 

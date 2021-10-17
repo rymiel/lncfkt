@@ -26,6 +26,8 @@ data class FlowCall(val name: Identifier, val args: Arguments) : Call()
 data class FnCall(val name: Identifier, val args: Arguments) : Call()
 data class IfElseCall(val clauses: List<Conditional>, val elseBody: List<Call>?) : Call()
 data class MacroCall(val name: Identifier, val body: List<MacroBody>) : Call()
+data class SetCall(val name: String, val body: Call) : Call()
+data class ReturnCall(val value: LiteralLike) : Call()
 @Deprecated("unimplemented")
 data class UnimplementedCall(val msg: String = "UNIMPLEMENTED!") : Call()
 
@@ -69,7 +71,7 @@ fun LNCFParser.Macro_memberContext.transform(): MacroBody {
         else -> throw IllegalStateException("Unknown macro member argument $a ${a::class}")
       }
     }
-    is LNCFParser.CallMacroMemberContext -> CallMacroBody(transform(this.call()))
+    is LNCFParser.CallMacroMemberContext -> CallMacroBody(this.call().transform())
     is LNCFParser.RecursiveMacroMemberContext -> RecursiveMacroBody(this.macro_body().d.map { it.transform() })
     else -> throw IllegalStateException("Unknown macro member $this ${this::class}")
   }
@@ -126,35 +128,37 @@ fun LNCFParser.IdentifierContext.transform(): Identifier {
   }
 }
 
-fun transform(c: LNCFParser.CallContext): Call {
-  return when (c) {
+fun LNCFParser.CallContext.transform(): Call {
+  return when (this) {
     is LNCFParser.FlowCallContext -> {
-      val call = c.functional_call()
+      val call = functional_call()
       return FlowCall(call.identifier().transform(), readArgs(call.d))
     }
     is LNCFParser.FnCallContext -> {
-      val call = c.functional_call()
+      val call = functional_call()
       return FnCall(call.identifier().transform(), readArgs(call.d))
     }
     is LNCFParser.IfElseCallContext -> {
-      val ifElse = c.if_else_call()
+      val ifElse = if_else_call()
       val clauses = ifElse.if_clauses.map {
         it.transform()
       }
       val bodies = ifElse.if_bodies.map {
-        it.d.map { call -> transform(call) }
+        it.d.map { call -> call.transform() }
       }
       val conditions = clauses.zip(bodies) { clause, body ->
         Conditional(clause, body)
       }
-      val elseBody = ifElse.else_body?.d?.map { transform(it) }
+      val elseBody = ifElse.else_body?.d?.map { it.transform() }
       return IfElseCall(conditions, elseBody)
     }
     is LNCFParser.MacroCallContext -> {
-      val m = c.macro_call()
+      val m = macro_call()
       MacroCall(m.identifier().transform(), m.macro_body().d.map { it.transform() })
     }
-    else -> UnimplementedCall("call $c ${c::class}")
+    is LNCFParser.SetCallContext -> SetCall(WORD().text, call().transform())
+    is LNCFParser.ReturnCallContext -> ReturnCall(literal_like().transform())
+    else -> UnimplementedCall("call $this ${this::class}")
   }
 }
 
