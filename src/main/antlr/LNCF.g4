@@ -194,5 +194,6 @@ INT         : [0-9]+ ;
 WORD        : [a-zA-Z_][a-zA-Z_0-9]* ;
 NL          : [\n][ \t\n\u000C\r]* ;
 WS          : [ \t\u000C\r]+ -> channel(HIDDEN);
+COMMENT     : '#' ~[\r\n]*  -> channel(HIDDEN);
 
 fragment EscapeSequence: '\\' ["\\] ;
