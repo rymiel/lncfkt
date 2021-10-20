@@ -152,7 +152,7 @@ clause
     | clause (EQ | GT | LT) clause          #ComparisonClause
     | clause OR clause                      #BooleanClause
     | LP clause RP                          #ParentheticalClause
-    | fn=WORD LP d+=literal_like
+    | fn=identifier LP d+=literal_like
         (separator d+=literal_like?)* RP    #FunctionCallClause
     ;
 
