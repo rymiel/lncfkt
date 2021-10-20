@@ -16,7 +16,12 @@ repositories {
 
 dependencies {
     implementation("org.jetbrains.kotlin", "kotlin-reflect", "1.5.30")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.7.0")
     antlr("org.antlr", "antlr4", "4.9.2")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 tasks.withType<KotlinCompile> {
