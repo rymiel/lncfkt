@@ -58,9 +58,21 @@ define flow normalize {
   }
 }
 
-define flow apply_suffix (suffix) {
+define flow apply_suffix (suffix, original) {
   if stressed($suffix) { flow destress }
   flow :append { $suffix }
+
+  flow lib:replace { "@", fn :char { $original, -2 } }
+
+  if lib:has_match($suffix, "<") {
+    flow lib:replace { "<", "" }
+    flow stress_first
+  }
+
+  if lib:has_match($suffix, ">") {
+    flow lib:replace { ">", "" }
+    flow stress_last
+  } 
 
   # macro lib:rune {
   #   {replace, "@", fn :char {$suffix, 1}}
@@ -122,4 +134,10 @@ functional space for verb_class {
   dimensions {person, number, tense}
   order {inf1, inf2, permute}
   then { flow apply_suffix }
+
+  0   -> {"lus",  "là",  "r",  "lék",  "léts",  "lát",  "lág",   "lás",  "ret", "reg",  "ras",  "làmo", "lànà", "lona", "lí"}
+  I   -> {"élus", "érà", "<à", "eké",  "ités",  "amét", "anég",  "anés", "ét",  "ég",   "ésa",  "ámo",  "ánà",  "ánà",  "í"}
+  II  -> {"las",  "lar", "lý", "laké", "lités", "làté", "lànég", "láns", "ld",  "leg",  "lsa",  "làmo", "lànà", "lànà", "li"}
+  III -> {"lud",  "rad", "d",  "lék",  "ld",    "deté", "dég",   "dés",  "lut", "lek",  "lusa", "lomà", "lonà", "lonà", ""}
+  IV  -> {"@ú",   "@ár", "ǹý", "ǹék",  ">n",    "ǹám",  "ǹág",   "ǹán",  "@út", "@úek", "@úsa", "@ámo", "@ánà", "@ánà", "@"}
 }
