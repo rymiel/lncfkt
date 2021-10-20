@@ -266,7 +266,15 @@ class VirtualMachineCompiler {
       when (v.value) {
         0 -> opcode(Imm0, pos = v.pos)
         1 -> opcode(Imm1, pos = v.pos)
-        else -> this.opcode(I8, v.value as Int, pos = v.pos)
+        else -> {
+          val value = v.value as Int
+          if (value > 127 || value < 0) {
+            val thisConst = allocateConstant(v)
+            this.opcode(LdConst, thisConst, pos = v.pos)
+          } else {
+            this.opcode(I8, value, pos = v.pos)
+          }
+        }
       }
     } else {
       val thisConst = allocateConstant(v)
