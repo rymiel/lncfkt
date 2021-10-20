@@ -21,9 +21,11 @@ vm = LNCF::VM.new c, {
     "map_characters" => LNCF::Lib.auto_lib(map_characters),
     "has_match" => LNCF::Lib.auto_lib(has_match),
     "match_count" => LNCF::Lib.auto_lib(match_count),
+    "replace" => LNCF::Lib.auto_lib(replace)
   },
   "op" => {
-    "append" => LNCF::Lib.auto_lib(op_append)
+    "append" => LNCF::Lib.auto_lib(op_append),
+    "char" => LNCF::Lib.auto_lib(op_char)
   },
   "local" => d.transform_values { |i| LNCF::VM.defined_method(*i) }
 }

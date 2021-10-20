@@ -36,8 +36,16 @@ module LNCF::Lib
     s.scan(Regex.new(pattern)).size
   end
 
+  def replace(s : String, a : String, b : String) : String
+    s.gsub a, b
+  end
+
   def op_append(a : String, b : String) : String
     a + b
+  end
+
+  def op_char(a : String, index : Int32) : String
+    a[index].to_s
   end
 
   macro auto_lib(method)
