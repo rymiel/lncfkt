@@ -57,7 +57,7 @@ functional_definition
     ;
 
 body
-    : d+=call (separator d+=call?)*
+    : (d+=call (separator d+=call?)*)?
     ;
 
 enum_definition
