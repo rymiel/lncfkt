@@ -33,6 +33,7 @@ data class Constant<T>(val value: T, val token: Token): Literal(SinglePos(token)
 data class Global(val name: String, val token: Token): LiteralLike(SinglePos(token))
 data class PassedIndexArgument(val index: Int, val token: Token): LiteralLike(SinglePos(token))
 data class PassedNamedArgument(val name: String, val token: Token): LiteralLike(SinglePos(token))
+data class CallLiteral(val call: Call, val token: Token): LiteralLike(SinglePos(token))
 
 data class Arguments(val positional: List<LiteralLike> = listOf(), val named: Map<String, LiteralLike> = mapOf())
 
@@ -63,13 +64,13 @@ data class LiteralClause(val literal: LiteralLike) : Clause()
 data class BinaryClause(val operation: String, val a: Clause, val b: Clause) : Clause()
 data class FunctionalCallClause(val function: Identifier, val args: List<LiteralLike>) : Clause()
 
-fun readArgs(a: List<LNCFParser.ArgumentContext>): Arguments {
+fun readArgs(a: List<LNCFParser.ArgumentContext>, ctx: Context): Arguments {
   val pos = mutableListOf<LiteralLike>()
   val named = mutableMapOf<String, LiteralLike>()
   a.forEach {
     when (it) {
-      is LNCFParser.PositionalContext -> pos.add(it.literal_like().transform())
-      is LNCFParser.NamedContext -> named[it.WORD().text] = it.literal_like().transform()
+      is LNCFParser.PositionalContext -> pos.add(it.literal_like().transform(ctx))
+      is LNCFParser.NamedContext -> named[it.WORD().text] = it.literal_like().transform(ctx)
     }
   }
   return Arguments(pos, named)
@@ -79,8 +80,8 @@ fun LNCFParser.Macro_memberContext.transform(ctx: Context): MacroBody {
   return when (this) {
     is LNCFParser.ArgumentMacroMemberContext -> {
       when (val a = this.argument()) {
-        is LNCFParser.PositionalContext -> ArgumentMacroBody(a.literal_like().transform(), null)
-        is LNCFParser.NamedContext -> ArgumentMacroBody(a.literal_like().transform(), a.WORD().text)
+        is LNCFParser.PositionalContext -> ArgumentMacroBody(a.literal_like().transform(ctx), null)
+        is LNCFParser.NamedContext -> ArgumentMacroBody(a.literal_like().transform(ctx), a.WORD().text)
         else -> throw IllegalStateException("Unknown macro member argument $a ${a::class}")
       }
     }
@@ -93,7 +94,7 @@ fun LNCFParser.Macro_memberContext.transform(ctx: Context): MacroBody {
 fun LNCFParser.ClauseContext.transform(ctx: Context): Clause {
   return when (this) {
     is LNCFParser.LiteralClauseContext -> {
-      val l = this.literal_like().transform()
+      val l = this.literal_like().transform(ctx)
       var r: Clause = LiteralClause(l)
       if (l is Global) {
         val implicit = ctx.definitions.find { it.name == l.name }
@@ -113,7 +114,7 @@ fun LNCFParser.ClauseContext.transform(ctx: Context): Clause {
       }
       BinaryClause(operation, this.clause(0).transform(ctx), this.clause(1).transform(ctx))
     }
-    is LNCFParser.FunctionCallClauseContext -> FunctionalCallClause(Identifier(this.fn.text), this.d.map { it.transform() })
+    is LNCFParser.FunctionCallClauseContext -> FunctionalCallClause(this.fn.transform(), this.d.map { it.transform(ctx) })
     else -> throw IllegalStateException("Unknown clause $this ${this::class}")
   }
 }
@@ -127,7 +128,7 @@ fun LNCFParser.LiteralContext.transform(): Literal {
   }
 }
 
-fun LNCFParser.Literal_likeContext.transform(): LiteralLike {
+fun LNCFParser.Literal_likeContext.transform(ctx: Context): LiteralLike {
   return when (this) {
     is LNCFParser.ActualLiteralContext -> this.literal().transform()
     is LNCFParser.GlobalContext -> Global(this.WORD().text, this.WORD().symbol)
@@ -138,6 +139,7 @@ fun LNCFParser.Literal_likeContext.transform(): LiteralLike {
         else -> throw IllegalStateException("No known passed argument $this ${this::class}")
       }
     }
+    is LNCFParser.CallLiteralContext -> CallLiteral(this.call().transform(ctx), this.call().start)
     else -> throw IllegalStateException("Unknown literal-like $this ${this::class}")
   }
 }
@@ -156,18 +158,18 @@ fun LNCFParser.CallContext.transform(ctx: Context): Call {
     is LNCFParser.FlowCallContext -> {
       val call = functional_call()
       if (ctx.current.type == DefinitionStub.DefinitionType.FLOW) {
-        val args = readArgs(call.d)
+        val args = readArgs(call.d, ctx)
         val dummy = call.BEGIN()?.symbol ?: call.getStop()
         return SetCall("word",
           FnCall(
             call.identifier().transform(),
             Arguments(listOf(PassedNamedArgument("word", dummy)) + args.positional, args.named), dummy), dummy)
       }
-      return FnCall(call.identifier().transform(), readArgs(call.d), call.start)
+      return FnCall(call.identifier().transform(), readArgs(call.d, ctx), call.start)
     }
     is LNCFParser.FnCallContext -> {
       val call = functional_call()
-      return FnCall(call.identifier().transform(), readArgs(call.d), call.start)
+      return FnCall(call.identifier().transform(), readArgs(call.d, ctx), call.start)
     }
     is LNCFParser.IfElseCallContext -> {
       val ifElse = if_else_call()
@@ -188,7 +190,7 @@ fun LNCFParser.CallContext.transform(ctx: Context): Call {
       MacroCall(m.identifier().transform(), m.macro_body().d.map { it.transform(ctx) }, m.start)
     }
     is LNCFParser.SetCallContext -> SetCall(WORD().text, call().transform(ctx), start)
-    is LNCFParser.ReturnCallContext -> ReturnCall(literal_like().transform(), start)
+    is LNCFParser.ReturnCallContext -> ReturnCall(literal_like().transform(ctx), start)
     else -> UnimplementedCall("call $this ${this::class}")
   }
 }

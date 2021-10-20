@@ -284,6 +284,15 @@ class VirtualMachineCompiler {
       is Global -> this.opcode(LdConst, globals[v.name]!!, pos = v.pos)
       is PassedIndexArgument -> this.autoLoadReg(v.index - 1 + this.context!!.args.size, pos = v.pos)
       is PassedNamedArgument -> this.autoLoadReg(this.context!!.args.indexOf(v.name), pos = v.pos)
+      is CallLiteral -> {
+        val previousInControl = inControl
+        val previousInFunctional = inFunctional
+        inControl = true
+        inFunctional = true
+        compileBody(listOf(v.call))
+        inControl = previousInControl
+        inFunctional = previousInFunctional
+      }
     }
   }
 

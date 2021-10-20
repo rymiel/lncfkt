@@ -182,6 +182,7 @@ fun LiteralLike.tree(t: TreeState) {
     is Global -> this.tree(t)
     is PassedIndexArgument -> this.tree(t)
     is PassedNamedArgument -> this.tree(t)
+    is CallLiteral -> this.call.tree(t)
   }
 }
 

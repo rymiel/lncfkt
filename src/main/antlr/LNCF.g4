@@ -24,6 +24,7 @@ literal_like
     : literal           #ActualLiteral
     | passed_argument   #PassedArgument
     | WORD              #Global
+    | call              #CallLiteral
     | '(' clause ')'    #ComplexLiteral
     ;
 
