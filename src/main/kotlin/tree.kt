@@ -91,6 +91,7 @@ fun Definition.tree(t: TreeState) {
   when (this) {
     is GlobalDefinition -> this.tree(t)
     is FnDefinition -> this.tree(t)
+    is EnumDefinition -> this.tree(t)
     is UnimplementedDefinition -> this.tree(t)
   }
 }
@@ -116,6 +117,13 @@ fun FnDefinition.tree(t: TreeState) {
   }
 }
 
+fun EnumDefinition.tree(t: TreeState) {
+  t.nest("define $type enum", name) { tc ->
+    entries.forEach {
+      tc.emit(it)
+    }
+  }
+}
 fun Clause.tree(t: TreeState) {
   when (this) {
     is LiteralClause -> this.literal.tree(t)

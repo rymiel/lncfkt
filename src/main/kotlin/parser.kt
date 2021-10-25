@@ -54,8 +54,11 @@ data class RecursiveMacroBody(val next: List<MacroBody>) : MacroBody()
 sealed class Definition(open val name: String)
 data class GlobalDefinition(override val name: String, val value: Literal): Definition(name)
 data class FnDefinition(override val name: String, val args: List<String>, val body: List<Call>): Definition(name)
+data class EnumDefinition(override val name: String, val type: EnumType, val entries: List<String>): Definition(name)
 @Deprecated("unimplemented")
 data class UnimplementedDefinition(val msg: String = "UNIMPLEMENTED!") : Definition("?")
+
+enum class EnumType { MANUAL, FUNCTIONAL }
 
 data class Conditional(val clause: Clause, val body: List<Call>)
 
@@ -195,6 +198,24 @@ fun LNCFParser.CallContext.transform(ctx: Context): Call {
   }
 }
 
+fun LNCFParser.Enum_definitionContext.transform(type: EnumType): EnumDefinition {
+  return EnumDefinition(this.name.text, type, this.d.map { it.text })
+}
+
+fun LNCFParser.ClassifierContext.transform(ctx: Context): Classifier {
+  return when (this) {
+    is LNCFParser.LiteralClassifierContext -> LiteralClassifier(this.WORD().text, this.literal_like().transform(ctx))
+    is LNCFParser.CompoundClassifierContext -> CompoundClassifier(this.WORD()?.text ?: "include", this.compound_classifier().d.map { it.transform(ctx) })
+    else -> throw IllegalStateException("No known classifier $this ${this::class}")
+  }
+}
+
+fun LNCFParser.Classification_definitionContext.transform(ctx: Context): ClassificationDefinition {
+  val body = mutableMapOf<String, Classifier>()
+  classification_body().d.forEach { body[it.k.text] = it.v.transform(ctx) }
+  return ClassificationDefinition(name.text, k.text, v.text, body)
+}
+
 fun LNCFParser.DefinitionContext.stub(): DefinitionStub {
   return when (this) {
     is LNCFParser.GlobalDefinitionContext -> DefinitionStub(this.global_definition().WORD().text, DefinitionStub.DefinitionType.GLOBAL)
@@ -223,6 +244,8 @@ fun LNCFParser.DefinitionContext.transform(ctx: Context): Definition {
 
       FnDefinition(fn.name.text, fn.args.map { it.text }, fn.body().d.map { it.transform(ctx) })
     }
+    is LNCFParser.ManualEnumDefinitionContext -> this.enum_definition().transform(EnumType.MANUAL)
+    is LNCFParser.FunctionalEnumDefinitionContext -> this.enum_definition().transform(EnumType.FUNCTIONAL)
     else -> UnimplementedDefinition("definition $this ${this::class}")
   }
 }

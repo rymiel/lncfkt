@@ -69,6 +69,7 @@ class VirtualMachineCompiler {
   val constants = mutableListOf<Primitive<*>>()
   val globals = mutableMapOf<String, Int>()
   val declared = mutableMapOf<String, VirtualMachineFunction>()
+  val enums = mutableListOf<EnumDefinition>()
   var current: Line? = null
   var currentEntrypoint: Line? = null
   var knownDefs = listOf<Definition>()
@@ -90,6 +91,7 @@ class VirtualMachineCompiler {
       is FnDefinition -> {
         topLevelGuard(def)
       }
+      is EnumDefinition -> enums.add(def)
     }
   }
 
@@ -126,6 +128,13 @@ class VirtualMachineCompiler {
       s.writeInt(v.registers)
       s.writeShort(v.bytecode.size)
       s.write(v.bytecode)
+    }
+    s.writeShort(enums.size)
+    enums.forEach {
+      s.writeByte(it.type.ordinal)
+      s.writeUTF(it.name)
+      s.writeShort(it.entries.size)
+      it.entries.forEach(s::writeUTF)
     }
     file.writeBytes(b.toByteArray())
   }
