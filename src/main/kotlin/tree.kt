@@ -92,6 +92,7 @@ fun Definition.tree(t: TreeState) {
     is GlobalDefinition -> this.tree(t)
     is FnDefinition -> this.tree(t)
     is EnumDefinition -> this.tree(t)
+    is ClassificationDefinition -> this.tree(t)
     is UnimplementedDefinition -> this.tree(t)
   }
 }
@@ -124,6 +125,35 @@ fun EnumDefinition.tree(t: TreeState) {
     }
   }
 }
+
+fun ClassificationDefinition.tree(t: TreeState) {
+  t.nest("classify", name) { tc ->
+    tc.nest("where") { tc ->
+      tc.emit(key, whereValue)
+    }
+    tc.nest("classifications") { tc ->
+      classifications.forEach {
+        tc.nest(it.key) { tc ->
+          tc.nest(it.value.method) { tc ->
+            it.value.tree(tc)
+          }
+        }
+      }
+    }
+  }
+}
+
+fun Classifier.tree(t: TreeState) {
+  when (this) {
+    is LiteralClassifier -> this.value.tree(t)
+    is CompoundClassifier -> this.members.forEach {
+      t.nest(it.method) { tc ->
+        it.tree(tc)
+      }
+    }
+  }
+}
+
 fun Clause.tree(t: TreeState) {
   when (this) {
     is LiteralClause -> this.literal.tree(t)
@@ -191,6 +221,7 @@ fun LiteralLike.tree(t: TreeState) {
     is PassedIndexArgument -> this.tree(t)
     is PassedNamedArgument -> this.tree(t)
     is CallLiteral -> this.call.tree(t)
+    is ComplexLiteral -> this.clause.tree(t)
   }
 }
 

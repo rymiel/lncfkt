@@ -34,6 +34,7 @@ data class Global(val name: String, val token: Token): LiteralLike(SinglePos(tok
 data class PassedIndexArgument(val index: Int, val token: Token): LiteralLike(SinglePos(token))
 data class PassedNamedArgument(val name: String, val token: Token): LiteralLike(SinglePos(token))
 data class CallLiteral(val call: Call, val token: Token): LiteralLike(SinglePos(token))
+data class ComplexLiteral(val clause: Clause, val token: Token): LiteralLike(SinglePos(token))
 
 data class Arguments(val positional: List<LiteralLike> = listOf(), val named: Map<String, LiteralLike> = mapOf())
 
@@ -55,12 +56,17 @@ sealed class Definition(open val name: String)
 data class GlobalDefinition(override val name: String, val value: Literal): Definition(name)
 data class FnDefinition(override val name: String, val args: List<String>, val body: List<Call>): Definition(name)
 data class EnumDefinition(override val name: String, val type: EnumType, val entries: List<String>): Definition(name)
+data class ClassificationDefinition(override val name: String, val key: String, val whereValue: String, val classifications: Map<String, Classifier>): Definition(name)
 @Deprecated("unimplemented")
 data class UnimplementedDefinition(val msg: String = "UNIMPLEMENTED!") : Definition("?")
 
 enum class EnumType { MANUAL, FUNCTIONAL }
 
 data class Conditional(val clause: Clause, val body: List<Call>)
+
+sealed class Classifier(open val method: String)
+data class LiteralClassifier(override val method: String, val value: LiteralLike): Classifier(method)
+data class CompoundClassifier(override val method: String, val members: List<Classifier>): Classifier(method)
 
 sealed class Clause
 data class LiteralClause(val literal: LiteralLike) : Clause()
@@ -118,6 +124,13 @@ fun LNCFParser.ClauseContext.transform(ctx: Context): Clause {
       BinaryClause(operation, this.clause(0).transform(ctx), this.clause(1).transform(ctx))
     }
     is LNCFParser.FunctionCallClauseContext -> FunctionalCallClause(this.fn.transform(), this.d.map { it.transform(ctx) })
+    is LNCFParser.OperativeClauseContext -> {
+      val operation = when {
+        this.CONCAT() != null -> this.CONCAT().text
+        else -> throw IllegalStateException("Couldn't identify operation in clause $text")
+      }
+      BinaryClause(operation, this.clause(0).transform(ctx), this.clause(1).transform(ctx))
+    }
     else -> throw IllegalStateException("Unknown clause $this ${this::class}")
   }
 }
@@ -143,6 +156,7 @@ fun LNCFParser.Literal_likeContext.transform(ctx: Context): LiteralLike {
       }
     }
     is LNCFParser.CallLiteralContext -> CallLiteral(this.call().transform(ctx), this.call().start)
+    is LNCFParser.ComplexLiteralContext -> ComplexLiteral(this.clause().transform(ctx), this.clause().start)
     else -> throw IllegalStateException("Unknown literal-like $this ${this::class}")
   }
 }
@@ -246,6 +260,7 @@ fun LNCFParser.DefinitionContext.transform(ctx: Context): Definition {
     }
     is LNCFParser.ManualEnumDefinitionContext -> this.enum_definition().transform(EnumType.MANUAL)
     is LNCFParser.FunctionalEnumDefinitionContext -> this.enum_definition().transform(EnumType.FUNCTIONAL)
+    is LNCFParser.ClassificationDefinitionContext -> this.classification_definition().transform(ctx)
     else -> UnimplementedDefinition("definition $this ${this::class}")
   }
 }
