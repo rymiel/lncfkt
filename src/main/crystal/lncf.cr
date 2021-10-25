@@ -5,9 +5,9 @@ require "./bytecode_file_reader"
 require "./vm"
 
 br = LNCF::BytecodeFileReader.new(IO::Hexdump.new(File.open("test.lncfb"), output: STDERR, read: true)).read
-c = br[:const_pool]
-d = br[:defined]
-h = br[:header]
+c = br.const_pool
+d = br.defined
+h = br.header
 
 puts "Bytecode version: 0x#{h[:version].to_s(16).rjust 4, '0'}"
 puts "Bytecode meta:"
@@ -35,8 +35,12 @@ d.each { |k, v|
   vm.inspect(v[0])
 }
 
-puts
-puts "Executing"
-puts
-vm.execute(d[ARGV[0]][0], ARGV[1..])
-pp! vm.stack
+pp br.enums
+
+if ARGV[0]? == "run"
+  puts
+  puts "Executing"
+  puts
+  vm.execute(d[ARGV[1]][0], ARGV[2..])
+  pp! vm.stack
+end
