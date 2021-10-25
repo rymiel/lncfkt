@@ -4,14 +4,11 @@ import org.antlr.v4.runtime.tree.ParseTreeWalker
 import org.junit.jupiter.api.Test
 
 import org.junit.jupiter.api.Assertions.*
-import space.rymiel.lncf.DefinitionStub
-import space.rymiel.lncf.HighlighterListener
-import space.rymiel.lncf.getResourceAsText
-import space.rymiel.lncf.stub
+import space.rymiel.lncf.*
 
 internal class ParserTest {
   private fun parseFromResource(s: String): LNCFParser.ProgContext {
-    val content = getResourceAsText("/fntypes.lncf")
+    val content = getResourceAsText(s)
     val lexer = LNCFLexer(CharStreams.fromString(content))
     val tokens = CommonTokenStream(lexer)
     val parser = LNCFParser(tokens)
@@ -27,5 +24,16 @@ internal class ParserTest {
       DefinitionStub("a_flow", DefinitionStub.DefinitionType.FLOW),
       DefinitionStub("an_fn", DefinitionStub.DefinitionType.FN)
     ))
+  }
+
+  @Test
+  fun testSolerian() {
+    val topLevel = parseFromResource("/solerian.lncf")
+    assertDoesNotThrow {
+      val defStubs = topLevel.d.map { it.stub() }
+      val defs = topLevel.d.map { it.transform(Context(defStubs, it.stub())) }
+      val comp = VirtualMachineCompiler()
+      comp.compile(defs)
+    }
   }
 }

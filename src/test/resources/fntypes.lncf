@@ -1,3 +1,5 @@
-define flow a_flow {}
+define flow a_flow {
+  flow another_flow
+}
 
 define fn an_fn {}
