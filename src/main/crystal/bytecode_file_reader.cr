@@ -50,7 +50,7 @@ module LNCF
         else raise ArgumentError.new("Unknown const type #{const_type}")
         end
       end
-      def_amount = read UInt32
+      def_amount = read UInt16
       defined = Hash(String, {Bytes, UInt16}).new
       def_amount.times do
         def_name = read_utf
@@ -59,7 +59,7 @@ module LNCF
         @io.read(def_bytecode)
         defined[def_name] = {def_bytecode, def_registers}
       end
-      enum_amount = read UInt32
+      enum_amount = read UInt16
       enums = Hash(String, EnumDefinition).new
       enum_amount.times do
         enum_type = EnumType.new (read UInt8).to_i32

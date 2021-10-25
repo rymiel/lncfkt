@@ -120,11 +120,11 @@ class VirtualMachineCompiler {
         }
       }
     }
-    s.writeInt(declared.size)
+    s.writeShort(declared.size)
     declared.forEach { (k, v) ->
       s.writeUTF(k)
       s.writeInt(v.registers)
-      s.writeInt(v.bytecode.size)
+      s.writeShort(v.bytecode.size)
       s.write(v.bytecode)
     }
     file.writeBytes(b.toByteArray())

@@ -13,7 +13,7 @@ module LNCF
     @ip = 0
     getter cur_io : IO? = nil
 
-    def self.defined_method(bytecode : Bytes, registers : UInt32) : VMMethod
+    def self.defined_method(bytecode : Bytes, registers : UInt16) : VMMethod
       ->(vm : VM, a : Array(Primitive), n : Hash(String, Primitive)) {
         vm.execute(bytecode, a)
         vm.stack.pop
