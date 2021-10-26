@@ -47,4 +47,32 @@ if ARGV[0]? == "run"
   puts
   vm.execute(d[ARGV[1]][0], ARGV[2..])
   pp! vm.stack
+elsif ARGV[0]? == "apply"
+  word = ARGV[1]
+  puts ">> #{word}"
+  manual_enums = Hash(LNCF::Bytecode::EnumDefinition, {String, Int32}).new
+  br.enums.select{ |k, v| v.type.manual? }.each do |k, v|
+    puts "Manual: #{k}: #{v.members}"
+    print "0..#{v.members.size - 1} >> "
+    opt = gets.not_nil!.chomp
+    idx = v.members.index opt
+    idx = opt.to_i if idx.nil?
+    manual_enums[v] = {k, idx}
+  end
+  classified = Hash(LNCF::Bytecode::Classification, String).new
+  br.classifiers.each do |k, v|
+    manual_enums.each do |ek, ev|
+      if ek == v.enum_key && ev[1] == v.ordinal
+        puts "will classify #{k} because #{ev[0]} is #{v.enum_val}"
+        v.body.each do |ck, cv|
+          next unless classified[v]?.nil?
+          if cv.operation == "suffix"
+            pattern = Regex.new cv.params.as(String)
+            classified[v] = ck if word.ends_with? pattern
+          end
+        end
+        puts "  classified as #{classified[v]}"
+      end
+    end
+  end
 end
