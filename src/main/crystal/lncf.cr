@@ -35,7 +35,11 @@ d.each { |k, v|
   vm.inspect(v[0])
 }
 
+puts
 pp br.enums
+puts
+pp br.classifiers
+puts
 
 if ARGV[0]? == "run"
   puts
