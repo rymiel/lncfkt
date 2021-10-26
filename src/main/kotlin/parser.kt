@@ -220,6 +220,7 @@ fun LNCFParser.ClassifierContext.transform(ctx: Context): Classifier {
   return when (this) {
     is LNCFParser.LiteralClassifierContext -> LiteralClassifier(this.WORD().text, this.literal_like().transform(ctx))
     is LNCFParser.CompoundClassifierContext -> CompoundClassifier(this.WORD()?.text ?: "include", this.compound_classifier().d.map { it.transform(ctx) })
+    is LNCFParser.SingularCompoundClassifierContext -> CompoundClassifier(this.WORD().text, listOf(this.classifier().transform(ctx)))
     else -> throw IllegalStateException("No known classifier $this ${this::class}")
   }
 }

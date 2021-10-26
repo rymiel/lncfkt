@@ -102,7 +102,7 @@ classify verb_class where paradigm=verb {
   II  -> suffix (syllable_regex .. "las")
   III -> suffix "lud",
   IV  -> {
-    exclude { suffix (stress_regex .. "(.*)[nm][úu]") }
+    exclude suffix (stress_regex .. "(.*)[nm][úu]")
     suffix "[nm][úu]"
   }
   0   -> suffix "lus"

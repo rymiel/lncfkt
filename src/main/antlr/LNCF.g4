@@ -101,6 +101,7 @@ classification
 
 classifier
     : WORD literal_like         #LiteralClassifier
+    | WORD classifier           #SingularCompoundClassifier
     | WORD? compound_classifier #CompoundClassifier
     ;
 
