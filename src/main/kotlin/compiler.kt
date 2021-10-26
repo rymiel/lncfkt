@@ -112,7 +112,10 @@ class VirtualMachineCompiler {
     meta.forEach { (k, v) ->
       s.writeUTF(k)
       s.writeUTF(v)
-    } 
+    }
+    declared.forEach { allocateConstant(it.key) }
+    enums.forEach { allocateConstant(it.key) }
+    classifiers.forEach { allocateConstant(it.key) }
     s.writeInt(constants.size)
     constants.forEach {
       when (it) {
@@ -128,7 +131,7 @@ class VirtualMachineCompiler {
     }
     s.writeShort(declared.size)
     declared.forEach { (k, v) ->
-      s.writeUTF(k)
+      s.writeShort(allocateConstant(k))
       s.writeInt(v.registers)
       s.writeShort(v.bytecode.size)
       s.write(v.bytecode)
@@ -136,13 +139,13 @@ class VirtualMachineCompiler {
     s.writeShort(enums.size)
     enums.forEach { (k, v) ->
       s.writeByte(v.type.ordinal)
-      s.writeUTF(k)
+      s.writeShort(allocateConstant(k))
       s.writeShort(v.entries.size)
       v.entries.forEach(s::writeUTF)
     }
     s.writeShort(classifiers.size)
     classifiers.forEach { (k, v) ->
-      s.writeUTF(k)
+      s.writeShort(allocateConstant(k))
       val correspondingEnum = enums.values.first { it.name == v.key }
       val enumIndex = enums.values.indexOf(correspondingEnum)
       s.writeShort(enumIndex)

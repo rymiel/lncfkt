@@ -63,7 +63,7 @@ module LNCF
       def_amount = read UInt16
       defined = Hash(String, {Bytes, UInt16}).new
       def_amount.times do
-        def_name = read_utf
+        def_name = constants[read UInt16].as String
         def_registers = read UInt16
         def_bytecode = Bytes.new read UInt32
         @io.read(def_bytecode)
@@ -74,7 +74,7 @@ module LNCF
       enums = Hash(String, EnumDefinition).new
       enum_amount.times do
         enum_type = EnumType.new (read UInt8).to_i32
-        enum_name = read_utf
+        enum_name = constants[read UInt16].as String
         enum_entries_amount = read UInt16
         enum_entries = Array(String).new
         enum_entries_amount.times do
@@ -86,7 +86,7 @@ module LNCF
       cls_amount = read UInt16
       classifiers = Hash(String, Classification).new
       cls_amount.times do
-        cls_name = read_utf
+        cls_name = constants[read UInt16].as String
         cls_enum_index = read UInt16
         cls_enum = enums.values[cls_enum_index]
         cls_enum_ord = read UInt16
