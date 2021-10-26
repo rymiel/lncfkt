@@ -143,8 +143,11 @@ class VirtualMachineCompiler {
     s.writeShort(classifiers.size)
     classifiers.forEach { (k, v) ->
       s.writeUTF(k)
-      s.writeUTF(v.key)
-      s.writeUTF(v.whereValue)
+      val correspondingEnum = enums.values.first { it.name == v.key }
+      val enumIndex = enums.values.indexOf(correspondingEnum)
+      s.writeShort(enumIndex)
+      val correspondingOrdinal = correspondingEnum.entries.indexOf(v.whereValue)
+      s.writeShort(correspondingOrdinal)
       s.writeShort(v.classifications.size)
       v.classifications.forEach { (ck, cv) ->
         s.writeUTF(ck)
