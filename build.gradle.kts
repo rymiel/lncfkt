@@ -16,7 +16,7 @@ repositories {
 
 dependencies {
     implementation("org.jetbrains.kotlin", "kotlin-reflect", "1.5.30")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.7.0")
+    testImplementation("org.junit.jupiter", "junit-jupiter", "5.8.1")
     antlr("org.antlr", "antlr4", "4.9.2")
 }
 
@@ -27,6 +27,7 @@ tasks.test {
 tasks.withType<KotlinCompile> {
     dependsOn(tasks.withType<AntlrTask>())
     kotlinOptions.jvmTarget = "16"
+    kotlinOptions.languageVersion = "1.4"
 }
 
 tasks.withType<Jar> {
@@ -34,7 +35,7 @@ tasks.withType<Jar> {
     manifest {
         attributes["Main-Class"] = "space.rymiel.lncf.MainKt"
         attributes["Implementation-Title"] = "rymiel/LNCF Bytecode Compiler/Kotlin"
-        attributes["Implementation-Version"] = version
+        attributes["Implementation-Version"] = project.version
     }
     
     from(configurations
