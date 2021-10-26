@@ -1,5 +1,5 @@
 module LNCF
-  class BytecodeFileReader
+  class Bytecode
     MAGIC = "LNCFB"
     alias JavaEndian = IO::ByteFormat::BigEndian
     alias Header = {version: UInt32, meta: Hash(String, String)}

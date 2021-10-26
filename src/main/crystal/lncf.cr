@@ -1,10 +1,10 @@
 require "io/hexdump"
 require "benchmark"
 require "./lib"
-require "./bytecode_file_reader"
+require "./bytecode"
 require "./vm"
 
-br = LNCF::BytecodeFileReader.new(IO::Hexdump.new(File.open("test.lncfb"), output: STDERR, read: true)).read
+br = LNCF::Bytecode.new(IO::Hexdump.new(File.open("test.lncfb"), output: STDERR, read: true)).read
 c = br.const_pool
 d = br.defined
 h = br.header
