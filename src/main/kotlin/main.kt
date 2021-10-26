@@ -43,7 +43,6 @@ class HighlighterListener(val tokens: CommonTokenStream) : LNCFBaseListener() {
       LNCFLexer.STRING -> GREEN
       LNCFLexer.DEFINE_FLOW, LNCFLexer.DEFINE_FN, LNCFLexer.DEFINE_GLOBAL, LNCFLexer.MANUAL_ENUM,
       LNCFLexer.CLASSIFY, LNCFLexer.WHERE, LNCFLexer.FUNCTIONAL_ENUM, LNCFLexer.FUNCTIONAL_SPACE_FOR -> ORANGE
-      // LNCFLexer.SUFFIX, LNCFLexer.INCLUDE, LNCFLexer.EXCLUDE -> ITALIC
       LNCFLexer.POS_ARG, LNCFLexer.NAME_ARG, LNCFLexer.TRUE, LNCFLexer.FALSE -> GREEN_BRIGHT
       LNCFLexer.PERMUTE -> ITALIC
       LNCFLexer.BEGIN, LNCFLexer.END -> GRAY
@@ -107,7 +106,10 @@ fun main() {
   println(listener.rewriter.text)
 
   val defStubs = topLevel.d.map { it.stub() }
-  val defs = topLevel.d.map { it.transform(Context(defStubs, it.stub())) }
+  val defs = mutableListOf<Definition>()
+  val transformDef = { it: LNCFParser.DefinitionContext -> it.transform(Context(defStubs, defs, it.stub())).also(defs::add) }
+  topLevel.d.filterIsInstance<LNCFParser.GlobalDefinitionContext>().forEach { transformDef(it) }
+  topLevel.d.filter { it !is LNCFParser.GlobalDefinitionContext }.forEach { transformDef(it) }
   val tree = TreeState()
   tree.nest("root") { t ->
     defs.forEach {

@@ -80,7 +80,8 @@ class VirtualMachineCompiler {
   fun compile(defs: List<Definition>) {
     this.knownDefs = defs
     defs.filterIsInstance<GlobalDefinition>().forEach { compile(it) }
-    defs.filter { it !is GlobalDefinition }.forEach { compile(it) }
+    defs.filterIsInstance<EnumDefinition>().forEach { compile(it) }
+    defs.filter { it !is GlobalDefinition && it !is EnumDefinition }.forEach { compile(it) }
   }
 
   fun compile(def: Definition) {
@@ -92,6 +93,7 @@ class VirtualMachineCompiler {
         topLevelGuard(def)
       }
       is EnumDefinition -> enums.add(def)
+      is ClassificationDefinition -> println(def)
     }
   }
 

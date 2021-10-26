@@ -3,7 +3,7 @@ package space.rymiel.lncf
 import org.antlr.v4.runtime.CommonToken
 import org.antlr.v4.runtime.Token
 
-data class Context(val definitions: List<DefinitionStub>, val current: DefinitionStub)
+data class Context(val definitions: List<DefinitionStub>, val completed: MutableList<Definition>, val current: DefinitionStub)
 data class DefinitionStub(val name: String, val type: DefinitionType) {
   enum class DefinitionType { FN, FLOW, GLOBAL, UNDEFINED }
 }
@@ -65,7 +65,7 @@ enum class EnumType { MANUAL, FUNCTIONAL }
 data class Conditional(val clause: Clause, val body: List<Call>)
 
 sealed class Classifier(open val method: String)
-data class LiteralClassifier(override val method: String, val value: LiteralLike): Classifier(method)
+data class LiteralClassifier(override val method: String, val value: Constant<*>): Classifier(method)
 data class CompoundClassifier(override val method: String, val members: List<Classifier>): Classifier(method)
 
 sealed class Clause
@@ -161,6 +161,43 @@ fun LNCFParser.Literal_likeContext.transform(ctx: Context): LiteralLike {
   }
 }
 
+fun LNCFParser.LiteralContext.constexpr(): Constant<*> {
+  return when (this) {
+    is LNCFParser.StringContext -> Constant(this.STRING().text.dropLast(1).drop(1), this.STRING().symbol)
+    is LNCFParser.IntContext -> Constant(this.INT().text.toInt(), this.INT().symbol)
+    is LNCFParser.BooleanContext -> Constant(this.TRUE() != null, (this.TRUE() ?: this.FALSE()).symbol)
+    else -> throw IllegalStateException("Non-constant literal $this ${this::class}")
+  }
+}
+
+fun LNCFParser.ClauseContext.constexpr(ctx: Context): Constant<*> {
+  return when (this) {
+    is LNCFParser.LiteralClauseContext -> {
+      this.literal_like().constexpr(ctx)
+    }
+    is LNCFParser.OperativeClauseContext -> {
+      when {
+        this.CONCAT() != null -> {
+          val a = this.clause(0).constexpr(ctx).value as String
+          val b = this.clause(1).constexpr(ctx).value as String
+          Constant(a + b, this.start)
+        }
+        else -> throw IllegalStateException("Couldn't identify operation in clause $text")
+      }
+    }
+    else -> throw IllegalStateException("Non-constant clause $this ${this::class}")
+  }
+}
+
+fun LNCFParser.Literal_likeContext.constexpr(ctx: Context): Constant<*> {
+  return when (this) {
+    is LNCFParser.ActualLiteralContext -> this.literal().constexpr()
+    is LNCFParser.ComplexLiteralContext -> this.clause().constexpr(ctx)
+    is LNCFParser.GlobalContext -> (ctx.completed.find { it.name == this.WORD().text } as GlobalDefinition).value as Constant<*>
+    else -> throw IllegalStateException("Non-constant literal-like $this ${this::class}")
+  }
+}
+
 fun LNCFParser.IdentifierContext.transform(): Identifier {
   return when (this) {
     is LNCFParser.NamespacedContext -> Identifier(ns.text, qualifier.text)
@@ -218,7 +255,7 @@ fun LNCFParser.Enum_definitionContext.transform(type: EnumType): EnumDefinition 
 
 fun LNCFParser.ClassifierContext.transform(ctx: Context): Classifier {
   return when (this) {
-    is LNCFParser.LiteralClassifierContext -> LiteralClassifier(this.WORD().text, this.literal_like().transform(ctx))
+    is LNCFParser.LiteralClassifierContext -> LiteralClassifier(this.WORD().text, this.literal_like().constexpr(ctx))
     is LNCFParser.CompoundClassifierContext -> CompoundClassifier(this.WORD()?.text ?: "include", this.compound_classifier().d.map { it.transform(ctx) })
     else -> throw IllegalStateException("No known classifier $this ${this::class}")
   }
