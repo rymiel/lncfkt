@@ -2,6 +2,7 @@ package space.rymiel.lncf
 
 import org.antlr.v4.runtime.CommonToken
 import space.rymiel.lncf.Instr.*
+import java.awt.SystemColor.text
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.io.File
@@ -69,7 +70,8 @@ class VirtualMachineCompiler {
   val constants = mutableListOf<Primitive<*>>()
   val globals = mutableMapOf<String, Int>()
   val declared = mutableMapOf<String, VirtualMachineFunction>()
-  val enums = mutableListOf<EnumDefinition>()
+  val enums = mutableMapOf<String, EnumDefinition>()
+  val classifiers = mutableMapOf<String, Classifier>()
   var current: Line? = null
   var currentEntrypoint: Line? = null
   var knownDefs = listOf<Definition>()
@@ -92,7 +94,7 @@ class VirtualMachineCompiler {
       is FnDefinition -> {
         topLevelGuard(def)
       }
-      is EnumDefinition -> enums.add(def)
+      is EnumDefinition -> enums[def.name] = def
       is ClassificationDefinition -> println(def)
     }
   }
@@ -132,11 +134,11 @@ class VirtualMachineCompiler {
       s.write(v.bytecode)
     }
     s.writeShort(enums.size)
-    enums.forEach {
-      s.writeByte(it.type.ordinal)
-      s.writeUTF(it.name)
-      s.writeShort(it.entries.size)
-      it.entries.forEach(s::writeUTF)
+    enums.forEach { (k, v) ->
+      s.writeByte(v.type.ordinal)
+      s.writeUTF(k)
+      s.writeShort(v.entries.size)
+      v.entries.forEach(s::writeUTF)
     }
     file.writeBytes(b.toByteArray())
   }
@@ -365,6 +367,40 @@ class VirtualMachineCompiler {
       }
     } else {
       TODO()
+    }
+  }
+
+  fun Literal.constexpr(): Constant<*> {
+    return when (this) {
+      is Constant<*> -> this
+    }
+  }
+
+  fun Clause.constexpr(): Constant<*> {
+    return when (this) {
+      is LiteralClause -> {
+        this.literal.constexpr()
+      }
+      is BinaryClause -> {
+        when (this.operation) {
+          ".." -> {
+            val a = this.a.constexpr().value as String
+            val b = this.b.constexpr().value as String
+            Constant(a + b, NULL_TOKEN)
+          }
+          else -> throw IllegalStateException("Couldn't identify operation in clause $text")
+        }
+      }
+      else -> throw IllegalStateException("Non-constant clause $this ${this::class}")
+    }
+  }
+
+  fun LiteralLike.constexpr(): Constant<*> {
+    return when (this) {
+      is Literal -> this.constexpr()
+      is ComplexLiteral -> this.clause.constexpr()
+      is Global -> (knownDefs.find { it.name == this.name } as GlobalDefinition).value as Constant<*>
+      else -> throw IllegalStateException("Non-constant literal-like $this ${this::class}")
     }
   }
 }

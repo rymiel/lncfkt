@@ -107,9 +107,7 @@ fun main() {
 
   val defStubs = topLevel.d.map { it.stub() }
   val defs = mutableListOf<Definition>()
-  val transformDef = { it: LNCFParser.DefinitionContext -> it.transform(Context(defStubs, defs, it.stub())).also(defs::add) }
-  topLevel.d.filterIsInstance<LNCFParser.GlobalDefinitionContext>().forEach { transformDef(it) }
-  topLevel.d.filter { it !is LNCFParser.GlobalDefinitionContext }.forEach { transformDef(it) }
+  topLevel.d.forEach { it.transform(Context(defStubs, it.stub())).also(defs::add) }
   val tree = TreeState()
   tree.nest("root") { t ->
     defs.forEach {
