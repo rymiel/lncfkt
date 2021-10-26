@@ -115,7 +115,10 @@ class VirtualMachineCompiler {
     }
     declared.forEach { allocateConstant(it.key) }
     enums.forEach { allocateConstant(it.key) }
-    classifiers.forEach { allocateConstant(it.key) }
+    classifiers.forEach {
+      allocateConstant(it.key)
+      it.value.classifications.values.forEach { j -> j.allocateNested() }
+    }
     s.writeInt(constants.size)
     constants.forEach {
       when (it) {
@@ -160,16 +163,21 @@ class VirtualMachineCompiler {
     file.writeBytes(b.toByteArray())
   }
 
+  private fun Classifier.allocateNested() {
+    allocateConstant(method)
+    if (this is CompoundClassifier) {
+      members.forEach { it.allocateNested() }
+    }
+  }
+
   private fun Classifier.writeNested(s: DataOutputStream) {
-    s.writeUTF(method)
+    s.writeShort(allocateConstant(method))
     if (this is LiteralClassifier) {
       s.writeShort(-1)
       s.writeUTF(value.constexpr().value.toString())
     } else if (this is CompoundClassifier) {
       s.writeShort(members.size)
-      members.forEach {
-        it.writeNested(s)
-      }
+      members.forEach { it.writeNested(s) }
     }
   }
 

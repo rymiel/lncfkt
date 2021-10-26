@@ -86,6 +86,7 @@ module LNCF
       cls_amount = read UInt16
       classifiers = Hash(String, Classification).new
       cls_amount.times do
+        puts "reading new cls"
         cls_name = constants[read UInt16].as String
         cls_enum_index = read UInt16
         cls_enum = enums.values[cls_enum_index]
@@ -94,7 +95,7 @@ module LNCF
         cls_body = Hash(String, ClassifierOp).new
         cls_body_amount.times do
           cls_op_key = read_utf
-          cls_op = read_classifier_op
+          cls_op = read_classifier_op constants
           cls_body[cls_op_key] = cls_op
         end
         classifiers[cls_name] = Classification.new cls_enum, cls_enum_ord, cls_body
@@ -112,15 +113,15 @@ module LNCF
       )
     end
 
-    private def read_classifier_op : ClassifierOp
-      operation = read_utf
+    private def read_classifier_op(constants : Array(VM::Primitive)) : ClassifierOp
+      operation = constants[read UInt16].as String
       param_amount = read UInt16
       if param_amount == UInt16::MAX
         ClassifierOp.new operation, read_utf
       else
         params = Array(ClassifierOp).new
         param_amount.times do
-          params << read_classifier_op
+          params << read_classifier_op constants
         end
         ClassifierOp.new operation, params
       end
