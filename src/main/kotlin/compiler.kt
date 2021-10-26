@@ -71,7 +71,7 @@ class VirtualMachineCompiler {
   val globals = mutableMapOf<String, Int>()
   val declared = mutableMapOf<String, VirtualMachineFunction>()
   val enums = mutableMapOf<String, EnumDefinition>()
-  val classifiers = mutableMapOf<String, Classifier>()
+  val classifiers = mutableMapOf<String, ClassificationDefinition>()
   var current: Line? = null
   var currentEntrypoint: Line? = null
   var knownDefs = listOf<Definition>()
@@ -95,7 +95,7 @@ class VirtualMachineCompiler {
         topLevelGuard(def)
       }
       is EnumDefinition -> enums[def.name] = def
-      is ClassificationDefinition -> println(def)
+      is ClassificationDefinition -> classifiers[def.name] = def
     }
   }
 
@@ -140,7 +140,31 @@ class VirtualMachineCompiler {
       s.writeShort(v.entries.size)
       v.entries.forEach(s::writeUTF)
     }
+    s.writeShort(classifiers.size)
+    classifiers.forEach { (k, v) ->
+      s.writeUTF(k)
+      s.writeUTF(v.key)
+      s.writeUTF(v.whereValue)
+      s.writeShort(v.classifications.size)
+      v.classifications.forEach { (ck, cv) ->
+        s.writeUTF(ck)
+        cv.writeNested(s)
+      }
+    }
     file.writeBytes(b.toByteArray())
+  }
+
+  private fun Classifier.writeNested(s: DataOutputStream) {
+    s.writeUTF(method)
+    if (this is LiteralClassifier) {
+      s.writeShort(-1)
+      s.writeUTF(value.constexpr().value.toString())
+    } else if (this is CompoundClassifier) {
+      s.writeShort(members.size)
+      members.forEach {
+        it.writeNested(s)
+      }
+    }
   }
 
   fun topLevelGuard(fn: FnDefinition) {
