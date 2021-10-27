@@ -121,7 +121,11 @@ fun FuncspaceOperation.tree(t: TreeState) {
     is OrderOperation -> {
       t.nest("order") { tc ->
         body.forEach {
-          tc.emit(it.toString())
+          if (it is PermuteOrderEntry) {
+            tc.emit("permute")
+          } else if (it is ExceptionalOrderEntry) {
+            tc.emit("exceptional", it.name)
+          }
         }
       }
     }

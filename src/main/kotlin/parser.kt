@@ -64,7 +64,7 @@ data class ThenOperation(val fn: Call): FuncspaceOperation()
 
 sealed class OrderEntry
 data class ExceptionalOrderEntry(val name: String): OrderEntry()
-data class ColumnOrderEntry(val body: HashMap<String, String>): OrderEntry()
+object PermuteOrderEntry : OrderEntry()
 
 enum class EnumType { MANUAL, FUNCTIONAL }
 
@@ -247,7 +247,10 @@ fun LNCFParser.Funcspace_definitionContext.transform(ctx: Context): FuncspaceDef
 private fun LNCFParser.Funcspace_operationContext.transform(ctx: Context): FuncspaceOperation {
   return when (this) {
     is LNCFParser.FuncspaceDimensionsOperationContext -> DimensionsOperation(d.map { it.text })
-    is LNCFParser.FuncspaceOrderOperationContext -> OrderOperation(listOf()) // TODO
+    is LNCFParser.FuncspaceOrderOperationContext -> OrderOperation(d.map {
+      if (it.text == "permute") PermuteOrderEntry
+      else ExceptionalOrderEntry(it.text)
+    })
     is LNCFParser.FuncspaceThenOperationContext -> ThenOperation(call().transform(ctx))
     else -> throw IllegalStateException("No known functional space operation $this ${this::class}")
   }
