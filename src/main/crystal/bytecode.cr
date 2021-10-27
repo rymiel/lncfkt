@@ -86,7 +86,6 @@ module LNCF
       cls_amount = read UInt16
       classifiers = Hash(String, Classification).new
       cls_amount.times do
-        puts "reading new cls"
         cls_name = constants[read UInt16].as String
         cls_enum_index = read UInt16
         cls_enum = enums.values[cls_enum_index]

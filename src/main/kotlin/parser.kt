@@ -44,8 +44,6 @@ data class IfElseCall(val clauses: List<Conditional>, val elseBody: List<Call>?,
 data class MacroCall(val name: Identifier, val body: List<MacroBody>, val token: Token) : Call(SinglePos(token))
 data class SetCall(val name: String, val body: Call, val token: Token) : Call(SinglePos(token))
 data class ReturnCall(val value: LiteralLike, val token: Token) : Call(SinglePos(token))
-@Deprecated("unimplemented")
-data class UnimplementedCall(val msg: String = "UNIMPLEMENTED!") : Call(NULL_SINGLE_POS)
 
 sealed class MacroBody
 data class ArgumentMacroBody(val argument: LiteralLike, val name: String?) : MacroBody()
@@ -208,7 +206,7 @@ fun LNCFParser.CallContext.transform(ctx: Context): Call {
     }
     is LNCFParser.SetCallContext -> SetCall(WORD().text, call().transform(ctx), start)
     is LNCFParser.ReturnCallContext -> ReturnCall(literal_like().transform(ctx), start)
-    else -> UnimplementedCall("call $this ${this::class}")
+    else -> throw IllegalStateException("No known call $this ${this::class}")
   }
 }
 

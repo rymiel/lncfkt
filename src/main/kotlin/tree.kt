@@ -169,7 +169,6 @@ fun Call.tree(t: TreeState) {
     is MacroCall -> this.tree(t)
     is ReturnCall -> this.tree(t)
     is SetCall -> this.tree(t)
-    is UnimplementedCall -> this.tree(t)
   }
 }
 
@@ -284,9 +283,6 @@ fun PassedNamedArgument.tree(t: TreeState) {
   t.emit("passed argument", name, pos)
 }
 
-fun UnimplementedCall.tree(t: TreeState) {
-  t.emit("call$RED unimplemented $msg")
-}
 fun UnimplementedDefinition.tree(t: TreeState) {
   t.emit("define$RED unimplemented $msg")
 }
