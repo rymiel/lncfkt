@@ -93,7 +93,50 @@ fun Definition.tree(t: TreeState) {
     is FnDefinition -> this.tree(t)
     is EnumDefinition -> this.tree(t)
     is ClassificationDefinition -> this.tree(t)
-    is UnimplementedDefinition -> this.tree(t)
+    is FuncspaceDefinition -> this.tree(t)
+  }
+}
+
+fun FuncspaceDefinition.tree(t: TreeState) {
+  t.nest("functional space for", name) { tc ->
+    tc.nest("operations") { tc ->
+      operations.forEach {
+        it.tree(tc)
+      }
+    }
+    tc.nest("members") { tc ->
+      body.forEach { (k, v) ->
+        tc.nest(k) { tc ->
+          v.forEach {
+            tc.emit(it)
+          }
+        }
+      }
+    }
+  }
+}
+
+fun FuncspaceOperation.tree(t: TreeState) {
+  when (this) {
+    is OrderOperation -> {
+      t.nest("order") { tc ->
+        body.forEach {
+          tc.emit(it.toString())
+        }
+      }
+    }
+    is DimensionsOperation -> {
+      t.nest("dimensions") { tc ->
+        body.forEach {
+          tc.emit(it)
+        }
+      }
+    }
+    is ThenOperation -> {
+      t.nest("then") { tc ->
+        fn.tree(tc)
+      }
+    }
   }
 }
 
@@ -281,10 +324,6 @@ fun PassedIndexArgument.tree(t: TreeState) {
 }
 fun PassedNamedArgument.tree(t: TreeState) {
   t.emit("passed argument", name, pos)
-}
-
-fun UnimplementedDefinition.tree(t: TreeState) {
-  t.emit("define$RED unimplemented $msg")
 }
 
 fun <T> Constant<T>.tree(t: TreeState) {

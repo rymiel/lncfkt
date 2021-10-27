@@ -55,8 +55,16 @@ data class GlobalDefinition(override val name: String, val value: Literal): Defi
 data class FnDefinition(override val name: String, val args: List<String>, val body: List<Call>): Definition(name)
 data class EnumDefinition(override val name: String, val type: EnumType, val entries: List<String>): Definition(name)
 data class ClassificationDefinition(override val name: String, val key: String, val whereValue: String, val classifications: Map<String, Classifier>): Definition(name)
-@Deprecated("unimplemented")
-data class UnimplementedDefinition(val msg: String = "UNIMPLEMENTED!") : Definition("?")
+data class FuncspaceDefinition(override val name: String, val operations: List<FuncspaceOperation>, val body: Map<String, List<String>>): Definition(name)
+
+sealed class FuncspaceOperation
+data class DimensionsOperation(val body: List<String>): FuncspaceOperation()
+data class OrderOperation(val body: List<OrderEntry>): FuncspaceOperation()
+data class ThenOperation(val fn: Call): FuncspaceOperation()
+
+sealed class OrderEntry
+data class ExceptionalOrderEntry(val name: String): OrderEntry()
+data class ColumnOrderEntry(val body: HashMap<String, String>): OrderEntry()
 
 enum class EnumType { MANUAL, FUNCTIONAL }
 
@@ -229,6 +237,22 @@ fun LNCFParser.Classification_definitionContext.transform(ctx: Context): Classif
   return ClassificationDefinition(name.text, k.text, v.text, body)
 }
 
+fun LNCFParser.Funcspace_definitionContext.transform(ctx: Context): FuncspaceDefinition {
+  val operations = funcspace_operations().d.map { it.transform(ctx) }
+  val body = mutableMapOf<String, List<String>>()
+  funcspace_members().d.forEach { body[it.k.text] = it.d.map { i -> i.text } }
+  return FuncspaceDefinition(name.text, operations, body)
+}
+
+private fun LNCFParser.Funcspace_operationContext.transform(ctx: Context): FuncspaceOperation {
+  return when (this) {
+    is LNCFParser.FuncspaceDimensionsOperationContext -> DimensionsOperation(d.map { it.text })
+    is LNCFParser.FuncspaceOrderOperationContext -> OrderOperation(listOf()) // TODO
+    is LNCFParser.FuncspaceThenOperationContext -> ThenOperation(call().transform(ctx))
+    else -> throw IllegalStateException("No known functional space operation $this ${this::class}")
+  }
+}
+
 fun LNCFParser.DefinitionContext.stub(): DefinitionStub {
   return when (this) {
     is LNCFParser.GlobalDefinitionContext -> DefinitionStub(this.global_definition().WORD().text, DefinitionStub.DefinitionType.GLOBAL)
@@ -260,6 +284,7 @@ fun LNCFParser.DefinitionContext.transform(ctx: Context): Definition {
     is LNCFParser.ManualEnumDefinitionContext -> this.enum_definition().transform(EnumType.MANUAL)
     is LNCFParser.FunctionalEnumDefinitionContext -> this.enum_definition().transform(EnumType.FUNCTIONAL)
     is LNCFParser.ClassificationDefinitionContext -> this.classification_definition().transform(ctx)
-    else -> UnimplementedDefinition("definition $this ${this::class}")
+    is LNCFParser.FuncspaceDefinitionContext -> this.funcspace_definition().transform(ctx)
+    else -> throw IllegalStateException("No known definition $this ${this::class}")
   }
 }
