@@ -108,8 +108,8 @@ classify verb_class where paradigm=verb {
   0   -> suffix "lus"
 }
 
-functional enum number { sg, pl }
-functional enum case { nom, acc, gen }
+dimension number { sg, pl }
+dimension case { nom, acc, gen }
 
 functional space for noun_class {
   dimensions { number, case }
@@ -127,8 +127,8 @@ functional space for noun_class {
   n2  -> {"r",  "rin", "ràr",  "àr",   "rinse", "riser"}
 }
 
-functional enum person { 1, 2, 3 }
-functional enum tense { present, past }
+dimension person { 1, 2, 3 }
+dimension tense { present, past }
 
 functional space for verb_class {
   dimensions {person, number, tense}

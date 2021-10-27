@@ -189,7 +189,7 @@ MANUAL_ENUM : 'manual enum' ;
 DEFINE_GLOBAL   : 'define global' ;
 DEFINE_FLOW     : 'define flow' ;
 DEFINE_FN       : 'define fn' ;
-FUNCTIONAL_ENUM : 'functional enum' ;
+FUNCTIONAL_ENUM : 'dimension' ;
 FUNCTIONAL_SPACE_FOR    : 'functional space for' ;
 
 INT         : '-'?[0-9]+ ;
